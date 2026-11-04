@@ -1,0 +1,14 @@
+{
+  "name": "omnira-studio-web",
+  "version": "1.2.9",
+  "private": true,
+  "description": "Omnira Studio 1.2.9 Web Edition – Nền tảng quản lý & tự động hóa đa kênh (Angular v22 + NestJS + Firebase)",
+  "scripts": {
+    "dev:backend": "npm --prefix backend run start:dev",
+    "dev:frontend": "npm --prefix frontend run start",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build",
+    "build": "npm run build:backend && npm run build:frontend",
+    "test:backend": "npm --prefix backend test"
+  }
+}

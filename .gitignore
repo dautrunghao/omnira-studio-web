@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.angular/
+.env
+.env.*
+*.log
+.DS_Store
+Omnira-Studio-Setup-1.2.9.exe
+.agents/duo/
+backend/dist/
+backend/node_modules/
+backend/data/*.sqlite*
+backend/data/*.json
+data/*.json
+frontend/dist/
+frontend/node_modules/
+frontend/.angular/
