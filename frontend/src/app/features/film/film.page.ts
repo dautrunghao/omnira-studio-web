@@ -1,7 +1,8 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
+import { DynamicEntity } from '../../core/models';
 import { OmniApiService } from '../../core/omni-api.service';
 
 type FilmStepId = 'script' | 'character' | 'location' | 'shot' | 'video' | 'assemble';
@@ -577,8 +578,8 @@ export class FilmPage implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
-  readonly films = signal<any[]>([]);
-  readonly currentFilm = signal<any | null>(null);
+  readonly films = signal<DynamicEntity[]>([]);
+  readonly currentFilm = signal<DynamicEntity | null>(null);
   readonly activeStep = signal<FilmStepId>('script');
   readonly busyGenerating = signal(false);
   readonly toastMsg = signal('');
@@ -617,12 +618,12 @@ export class FilmPage implements OnInit {
   }
 
   async loadFilmList() {
-    const list = await this.api.invoke<any[]>('film.list', {});
+    const list = await this.api.invoke<DynamicEntity[]>('film.list', {});
     this.films.set(list || []);
   }
 
   async loadFilmDetail(id: string) {
-    const detail = await this.api.invoke<any>('film.get', { id });
+    const detail = await this.api.invoke<DynamicEntity>('film.get', { id });
     this.currentFilm.set(detail);
   }
 
@@ -649,7 +650,7 @@ export class FilmPage implements OnInit {
   }
 
   async createFilm() {
-    const created = await this.api.invoke<any>('film.create', {
+    const created = await this.api.invoke<DynamicEntity>('film.create', {
       title: this.newFilmForm.title.trim() || 'Phim AI Mới',
       idea: this.newFilmForm.idea,
       aspect: this.newFilmForm.aspect,
@@ -661,7 +662,7 @@ export class FilmPage implements OnInit {
     }
   }
 
-  async updateFilmPatch(patch: any) {
+  async updateFilmPatch(patch: DynamicEntity) {
     const f = this.currentFilm();
     if (!f) return;
     await this.api.invoke('film.update', { id: f.id, patch });
@@ -679,7 +680,7 @@ export class FilmPage implements OnInit {
     if (!f) return;
     this.busyGenerating.set(true);
     try {
-      const updated = await this.api.invoke<any>('film.generateScript', { id: f.id });
+      const updated = await this.api.invoke<DynamicEntity>('film.generateScript', { id: f.id });
       this.currentFilm.set(updated);
       this.toastMsg.set('AI đã viết kịch bản và tách sẵn Nhân vật, Bối cảnh, Phân cảnh!');
     } finally {
@@ -701,7 +702,7 @@ export class FilmPage implements OnInit {
     await this.loadFilmDetail(f.id);
   }
 
-  async saveAsset(asset: any) {
+  async saveAsset(asset: DynamicEntity) {
     await this.api.invoke('film.saveAsset', asset);
   }
 
@@ -712,7 +713,7 @@ export class FilmPage implements OnInit {
     await this.loadFilmDetail(f.id);
   }
 
-  async generateSingleAsset(asset: any, mode: 'image' | 'video') {
+  async generateSingleAsset(asset: DynamicEntity, mode: 'image' | 'video') {
     const f = this.currentFilm();
     if (!f) return;
     await this.api.invoke('film.generate', { assetId: asset.id, mode });
@@ -720,7 +721,7 @@ export class FilmPage implements OnInit {
     await this.loadFilmDetail(f.id);
   }
 
-  async generateAllAssets(items: any[], mode: 'image' | 'video') {
+  async generateAllAssets(items: DynamicEntity[], mode: 'image' | 'video') {
     const f = this.currentFilm();
     if (!f) return;
     for (const a of items) {

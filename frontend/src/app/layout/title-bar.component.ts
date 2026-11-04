@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, HostListener, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { OmniApiService } from '../core/omni-api.service';
@@ -6,7 +6,7 @@ import { IconComponent } from '../shared/icon.component';
 import { ModalComponent } from '../shared/modal.component';
 import { errOf, initials } from '../shared/util';
 import { NotificationBellComponent } from './notification-bell.component';
-import { ShellStore } from './shell.store';
+import { AuthUser, LicenseView, ShellStore } from './shell.store';
 import { ThemePickerComponent } from './theme-picker.component';
 import { WorkspaceSwitcherComponent } from './workspace-switcher.component';
 
@@ -17,15 +17,15 @@ import { WorkspaceSwitcherComponent } from './workspace-switcher.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="titlebar">
-      <div class="flex min-w-0 items-center gap-2 pl-3">
-        <button class="o-icon-btn" title="Thu gọn thanh điều hướng (Ctrl+B)" aria-label="Thu gọn thanh điều hướng" (click)="shell.toggleRail()"><o-icon name="panel" [size]="16" /></button>
-        <a routerLink="/" class="flex items-center gap-1.5" style="text-decoration: none; color: inherit">
-          <o-icon name="globe" [size]="18" class="o-secondary" />
-          <span class="text-label-md font-semibold" style="letter-spacing: -0.01em">Omnira Studio</span>
-          <span class="o-badge mono primary">v1.2.9</span>
+      <div class="titlebar-left">
+        <button class="o-icon-btn shrink-0" title="Menu điều hướng (Ctrl+B)" aria-label="Menu điều hướng" (click)="onMenuToggle()"><o-icon name="panel" [size]="16" /></button>
+        <a routerLink="/" class="brand-link" style="text-decoration: none; color: inherit">
+          <o-icon name="globe" [size]="18" class="o-secondary shrink-0" />
+          <span class="brand-name text-label-md font-semibold" style="letter-spacing: -0.01em">Omnira Studio</span>
+          <span class="brand-ver o-badge mono primary">v1.2.9</span>
         </a>
-        <div style="width: 1px; height: 16px; background: rgb(var(--c-outline-variant) / 0.4); margin: 0 4px"></div>
-        <omni-workspace-switcher />
+        <div class="brand-sep"></div>
+        <omni-workspace-switcher class="min-w-0 flex-1" />
       </div>
 
       <button type="button" class="search" (click)="api.commandPaletteOpen.set(true)">
@@ -34,12 +34,15 @@ import { WorkspaceSwitcherComponent } from './workspace-switcher.component';
         <span class="o-kbd">Ctrl+K</span>
       </button>
 
-      <div class="flex items-center gap-1 pr-3">
+      <div class="titlebar-right">
+        <button type="button" class="o-icon-btn mobile-search-btn" title="Tìm kiếm nhanh (Ctrl+K)" aria-label="Tìm kiếm nhanh" (click)="api.commandPaletteOpen.set(true)">
+          <o-icon name="search" [size]="15" />
+        </button>
         @if (licenseHint(); as h) {
-          <button class="o-badge pill" [class.warning]="h.tone === 'warning'" [class.success]="h.tone === 'success'" style="cursor: pointer; border: 0" (click)="api.buyPlanOpen.set(true)" [title]="h.title">{{ h.label }}</button>
+          <button class="o-badge pill lic-hint" [class.warning]="h.tone === 'warning'" [class.success]="h.tone === 'success'" style="cursor: pointer; border: 0" (click)="api.buyPlanOpen.set(true)" [title]="h.title">{{ h.label }}</button>
         }
         <omni-notification-bell />
-        <button class="o-icon-btn" title="Kiểm tra lại license" aria-label="Kiểm tra lại license" (click)="refreshLicense()" [disabled]="refreshing()">
+        <button class="o-icon-btn refresh-lic-btn" title="Kiểm tra lại license" aria-label="Kiểm tra lại license" (click)="refreshLicense()" [disabled]="refreshing()">
           <o-icon name="refresh" [size]="15" [class.o-spin]="refreshing()" />
         </button>
         <omni-theme-picker />
@@ -48,7 +51,7 @@ import { WorkspaceSwitcherComponent } from './workspace-switcher.component';
             <span class="o-avatar" style="width: 26px; height: 26px; border-radius: 8px; font-size: 10px">{{ ini() }}</span>
           </button>
           @if (menu()) {
-            <div class="o-pop" style="right: 0; top: 38px; width: 280px">
+            <div class="o-pop" style="right: 0; top: 38px; width: min(280px, calc(100vw - 24px))">
               <div class="px-3 py-2">
                 <div class="font-semibold truncate">{{ shell.user()?.displayName || shell.user()?.name || 'Tài khoản' }}</div>
                 <div class="text-label-sm o-muted truncate">{{ shell.user()?.email }}</div>
@@ -87,20 +90,33 @@ import { WorkspaceSwitcherComponent } from './workspace-switcher.component';
     </o-modal>
   `,
   styles: [
-    `:host { display: block; flex-shrink: 0; }
-     .titlebar { position: relative; z-index: 40; display: flex; height: var(--titlebar-h); flex-shrink: 0; align-items: center; justify-content: space-between; gap: 12px; background: rgb(var(--c-surface-container-lowest) / 0.92); border-bottom: 1px solid rgb(var(--c-overlay) / 0.05); backdrop-filter: blur(12px); }
-     .search { display: flex; align-items: center; gap: 8px; height: 30px; width: 100%; max-width: 440px; padding: 0 12px; border-radius: 8px; border: 0; background: rgb(var(--c-surface-container-low)); color: rgb(var(--c-on-surface-variant) / 0.8); font-size: .8125rem; cursor: pointer; }
+    `:host { display: block; flex-shrink: 0; width: 100%; max-width: 100vw; }
+     .titlebar { position: relative; z-index: 40; display: flex; height: var(--titlebar-h); width: 100%; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px; background: rgb(var(--c-surface-container-lowest) / 0.92); border-bottom: 1px solid rgb(var(--c-overlay) / 0.05); backdrop-filter: blur(12px); }
+     .titlebar-left { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1 1 auto; overflow: hidden; }
+     .brand-link { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+     .brand-sep { width: 1px; height: 16px; background: rgb(var(--c-outline-variant) / 0.4); margin: 0 2px; flex-shrink: 0; }
+     .titlebar-right { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+     .search { display: flex; align-items: center; gap: 8px; height: 30px; width: 100%; max-width: 380px; padding: 0 12px; border-radius: 8px; border: 0; background: rgb(var(--c-surface-container-low)); color: rgb(var(--c-on-surface-variant) / 0.8); font-size: .8125rem; cursor: pointer; flex: 0 1 380px; }
      .search:hover { background: rgb(var(--c-surface-container)); }
+     .mobile-search-btn { display: none; }
      .acct { border: 0; background: transparent; padding: 3px; border-radius: 9px; cursor: pointer; }
      .acct:hover { background: rgb(var(--c-overlay) / 0.07); }
-     @media (max-width: 760px) { .search { display: none; } }
-     @media (max-width: 520px) { .titlebar .o-badge, .titlebar a span.text-label-md { display: none; } }`,
+     @media (max-width: 860px) {
+       .search { display: none; }
+       .mobile-search-btn { display: inline-flex; }
+     }
+     @media (max-width: 640px) {
+       .brand-ver, .brand-name, .lic-hint, .refresh-lic-btn { display: none; }
+       .brand-sep { display: none; }
+       .titlebar { padding: 0 8px; gap: 4px; }
+       .titlebar-left { gap: 4px; }
+       .titlebar-right { gap: 2px; }
+     }`,
   ],
 })
 export class TitleBarComponent {
   readonly api = inject(OmniApiService);
   readonly shell = inject(ShellStore);
-  private readonly el = inject(ElementRef);
   readonly menu = signal(false);
   readonly pwOpen = signal(false);
   readonly profileOpen = signal(false);
@@ -109,12 +125,20 @@ export class TitleBarComponent {
   pw = { current: '', next: '', again: '' };
   displayName = '';
 
-  ini() {
+  onMenuToggle(): void {
+    if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+      this.shell.toggleMobileNav();
+    } else {
+      this.shell.toggleRail();
+    }
+  }
+
+  ini(): string {
     const u = this.shell.user();
     return initials(u?.displayName || u?.name || u?.email || '?');
   }
 
-  licenseHint() {
+  licenseHint(): { label: string; tone: string; title: string } | null {
     const l = this.shell.license();
     if (!l) return null;
     if (l.trial || l.status === 'trial') return { label: 'Dùng thử · Mua gói', tone: 'warning', title: 'Đang dùng thử – mua gói để dùng lâu dài' };
@@ -126,27 +150,30 @@ export class TitleBarComponent {
     return null;
   }
 
-  async refreshLicense() {
+  async refreshLicense(): Promise<void> {
     this.refreshing.set(true);
-    const r = await this.api.invokeRaw('license.refresh');
+    const r = await this.api.invokeRaw<LicenseView>('license.refresh');
     this.refreshing.set(false);
     if (r.ok) {
       if (r.data) this.shell.license.set(r.data);
-      this.api.toast('Đã kiểm tra license', (r.data as any)?.message ?? 'License đang hoạt động', 'success');
+      this.api.toast('Đã kiểm tra license', r.data?.message ?? 'License đang hoạt động', 'success');
     } else this.api.toast('Không kiểm tra được license', errOf(r), 'error');
   }
 
-  openProfile() {
+  openProfile(): void {
     this.displayName = this.shell.user()?.displayName || this.shell.user()?.name || '';
     this.profileOpen.set(true);
     this.menu.set(false);
   }
 
-  async saveProfile() {
+  async saveProfile(): Promise<void> {
     this.busy.set(true);
     try {
-      const u = await this.api.invoke('auth.updateProfile', { displayName: this.displayName.trim(), name: this.displayName.trim() });
-      this.shell.setUser({ ...(this.shell.user() as any), ...(u ?? {}), displayName: this.displayName.trim() });
+      const u = await this.api.invoke<Partial<AuthUser>>('auth.updateProfile', { displayName: this.displayName.trim(), name: this.displayName.trim() });
+      const prev = this.shell.user();
+      if (prev) {
+        this.shell.setUser({ ...prev, ...(u ?? {}), displayName: this.displayName.trim() });
+      }
       this.api.toast('Đã cập nhật tên hiển thị', undefined, 'success');
       this.profileOpen.set(false);
     } catch {
@@ -156,7 +183,7 @@ export class TitleBarComponent {
     }
   }
 
-  async changePassword() {
+  async changePassword(): Promise<void> {
     if (this.pw.next.length < 8) return this.api.toast('Mật khẩu tối thiểu 8 ký tự', undefined, 'warn');
     if (this.pw.next !== this.pw.again) return this.api.toast('Mật khẩu nhập lại không khớp', undefined, 'warn');
     this.busy.set(true);
@@ -172,13 +199,14 @@ export class TitleBarComponent {
     }
   }
 
-  async logout() {
+  async logout(): Promise<void> {
     this.menu.set(false);
     await this.shell.logout();
   }
 
   @HostListener('document:mousedown', ['$event'])
-  onDoc(e: MouseEvent) {
-    if (this.menu() && !(e.target as HTMLElement).closest?.('.acct, .o-pop')) this.menu.set(false);
+  onDoc(e: MouseEvent): void {
+    const target = e.target as HTMLElement | null;
+    if (this.menu() && !target?.closest?.('.acct, .o-pop')) this.menu.set(false);
   }
 }

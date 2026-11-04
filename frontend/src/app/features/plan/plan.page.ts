@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { DynamicEntity } from '../../core/models';
 import { OmniApiService } from '../../core/omni-api.service';
 import { ShellStore } from '../../layout/shell.store';
 import { IconComponent } from '../../shared/icon.component';
@@ -208,7 +209,7 @@ export class PlanPageComponent {
   readonly statuses = IDEA_STATUS;
   readonly todayKey = dayKey(new Date());
   readonly formatGroups = (Object.keys(FORMAT_GROUP_LABEL) as (keyof typeof FORMAT_GROUP_LABEL)[]).map((key) => ({ key, label: FORMAT_GROUP_LABEL[key], items: CONTENT_FORMATS.filter((f) => f.group === key) }));
-  readonly usd = (n: any) => fmtUsd(n, 4);
+  readonly usd = (n: number | null | undefined) => fmtUsd(n, 4);
   readonly fmt = formatById;
 
   readonly mode = signal<'month' | 'week' | 'list'>('month');
@@ -223,7 +224,7 @@ export class PlanPageComponent {
   readonly genResult = signal<{ count: number; cost?: number; model?: string } | null>(null);
   readonly busy = signal(false);
   dragId: string | null = null;
-  cur: any = this.blank();
+  cur: Idea = this.blank();
   gen = { startDate: dayKey(new Date()), days: 7, perDay: 1, formats: [] as string[], useTrends: false };
 
   readonly days = computed(() => {
@@ -295,8 +296,8 @@ export class PlanPageComponent {
     return x;
   }
 
-  private blank(date: string | null = null) {
-    return { id: null, title: '', hook: '', description: '', plannedDate: date, format: 'free', status: 'idea', projectId: null, contentItemId: null, imageProjectId: null };
+  private blank(date: string | null = null): Idea {
+    return { id: undefined, title: '', hook: '', description: '', plannedDate: date, format: 'free', status: 'idea', projectId: null, contentItemId: null, imageProjectId: null };
   }
 
   countBy(s: string) {
@@ -373,7 +374,7 @@ export class PlanPageComponent {
 
   async convert(kind: 'toVideo' | 'toImage' | 'toPost') {
     this.busy.set(true);
-    const r = await this.api.invokeRaw<any>(`plan.${kind}`, { id: this.cur.id });
+    const r = await this.api.invokeRaw<DynamicEntity>(`plan.${kind}`, { id: this.cur.id });
     this.busy.set(false);
     if (!r.ok) return this.api.toast('Không chuyển được', errOf(r), 'error');
     this.ideaOpen.set(false);
@@ -391,7 +392,7 @@ export class PlanPageComponent {
   async generate() {
     this.generating.set(true);
     this.genResult.set(null);
-    const r = await this.api.invokeRaw<any>('plan.generate', {
+    const r = await this.api.invokeRaw<DynamicEntity>('plan.generate', {
       workspaceId: this.api.activeWorkspaceId(),
       startDate: this.gen.startDate,
       days: Math.max(1, Math.min(30, +this.gen.days || 7)),

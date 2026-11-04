@@ -16,7 +16,7 @@ export interface ApiErrorPayload {
   message: string;
 }
 
-export type ApiResult<T = any> =
+export type ApiResult<T = unknown> =
   | { ok: true; data: T }
   | { ok: false; error: ApiErrorPayload };
 

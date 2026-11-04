@@ -2,18 +2,42 @@ import { Injectable } from '@nestjs/common';
 import * as crypto from 'node:crypto';
 import { FirestoreService } from '../firebase/firestore.service';
 import { ApiResult } from './contract';
-import { newId } from './seed-data';
+import { newId, OmniStore, StoreEntity } from './seed-data';
 
-const hashPassword = (pw: string) => crypto.createHash('sha256').update(String(pw)).digest('hex');
+const sha256Password = (pw: string): string => crypto.createHash('sha256').update(String(pw)).digest('hex');
+
+const hashPassword = (pw: string): string => {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derived = crypto.scryptSync(String(pw), salt, 32).toString('hex');
+  return `scrypt$${salt}$${derived}`;
+};
+
+const verifyPassword = (pw: string, storedHash?: string): boolean => {
+  if (!storedHash) return false;
+  if (storedHash.startsWith('scrypt$')) {
+    const [, salt, hash] = storedHash.split('$');
+    if (!salt || !hash) return false;
+    const derived = crypto.scryptSync(String(pw), salt, 32).toString('hex');
+    return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(derived, 'hex'));
+  }
+  return storedHash === sha256Password(pw);
+};
+
+const toPublicUser = (u: StoreEntity | null): StoreEntity | null => {
+  if (!u) return null;
+  const copy: StoreEntity = { ...u };
+  delete copy.passwordHash;
+  return copy;
+};
 
 @Injectable()
 export class RpcService {
   constructor(private readonly db: FirestoreService) {}
 
-  private ensureSuperAdmin(s: any) {
+  private ensureSuperAdmin(s: OmniStore): StoreEntity {
     if (!Array.isArray(s.users)) s.users = [];
     const superEmail = 'super_admin@gmail.com';
-    let sa = s.users.find((u: any) => String(u.email).toLowerCase() === superEmail);
+    let sa = s.users.find((u: StoreEntity) => String(u.email).toLowerCase() === superEmail);
     if (!sa) {
       sa = {
         id: 'usr_super_admin',
@@ -47,16 +71,17 @@ export class RpcService {
     return sa;
   }
 
-  async dispatch(endpoint: string, input: any = {}): Promise<ApiResult> {
+  async dispatch(endpoint: string, input: StoreEntity = {}): Promise<ApiResult> {
     try {
       const data = await this.handleEndpoint(endpoint, input ?? {});
       return { ok: true, data };
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errObj = err as { code?: string; message?: string } | null;
       return {
         ok: false,
         error: {
-          code: err?.code || 'INTERNAL',
-          message: err?.message || 'Lỗi xử lý trên máy chủ',
+          code: errObj?.code || 'INTERNAL',
+          message: errObj?.message || 'Lỗi xử lý trên máy chủ',
         },
       };
     }
@@ -70,7 +95,7 @@ export class RpcService {
     return list.filter((item) => item.workspaceId === workspaceId);
   }
 
-  private async handleEndpoint(endpoint: string, input: any): Promise<any> {
+  private async handleEndpoint(endpoint: string, input: StoreEntity): Promise<unknown> {
     const s = this.db.getStore();
     const now = Date.now();
     const DAY = 86400000;
@@ -81,7 +106,7 @@ export class RpcService {
         this.ensureSuperAdmin(s);
         return {
           authenticated: !!s.authUser,
-          user: s.authUser,
+          user: toPublicUser(s.authUser),
           license: s.licenseState,
           hasUsers: true,
           lastEmail: s.authUser?.email || 'super_admin@gmail.com',
@@ -96,15 +121,14 @@ export class RpcService {
         if (!email || !password) {
           throw { code: 'AUTH_MISSING', message: 'Vui lòng nhập đầy đủ Email và Mật khẩu' };
         }
-        const found = s.users.find((u: any) => String(u.email).toLowerCase() === email);
+        const found = s.users.find((u: StoreEntity) => String(u.email).toLowerCase() === email);
         if (!found) {
           throw {
             code: 'AUTH_USER_NOT_FOUND',
             message: 'Không tìm thấy tài khoản trên Firebase Auth. Dùng super_admin@gmail.com (mật khẩu: 111111) hoặc Đăng ký mới.',
           };
         }
-        const inputHash = hashPassword(password);
-        const validPw = found.passwordHash === inputHash || (email === 'super_admin@gmail.com' && password === '111111');
+        const validPw = verifyPassword(password, found.passwordHash) || (email === 'super_admin@gmail.com' && password === '111111');
         if (!validPw) {
           throw {
             code: 'AUTH_INVALID_PASSWORD',
@@ -125,7 +149,7 @@ export class RpcService {
         };
         this.db.persist('authUser');
         this.db.persist('licenseState');
-        return { user: s.authUser, license: s.licenseState };
+        return { user: toPublicUser(s.authUser), license: s.licenseState };
       }
       case 'auth.register': {
         this.ensureSuperAdmin(s);
@@ -134,7 +158,7 @@ export class RpcService {
         if (!email || password.length < 6) {
           throw { code: 'AUTH_WEAK_PASSWORD', message: 'Email phải hợp lệ và mật khẩu tối thiểu 6 ký tự (chuẩn Firebase Auth)' };
         }
-        let user = s.users.find((u: any) => String(u.email).toLowerCase() === email);
+        let user = s.users.find((u: StoreEntity) => String(u.email).toLowerCase() === email);
         if (user) {
           throw { code: 'AUTH_EMAIL_EXISTS', message: 'Email này đã được đăng ký trên Firebase Auth' };
         }
@@ -157,18 +181,7 @@ export class RpcService {
           updatedAt: now,
         };
         s.users.push(user);
-        s.authUser = {
-          id: user.id,
-          uid: user.uid,
-          email: user.email,
-          name: user.name,
-          displayName: user.displayName,
-          role: user.role,
-          permissions: user.permissions,
-          fullAccess: true,
-          referralCode: user.referralCode,
-          points: user.points,
-        };
+        s.authUser = toPublicUser(user);
         this.db.persist('users');
         this.db.persist('authUser');
         return { pendingVerification: false, email: user.email, user: s.authUser, license: s.licenseState };
@@ -180,14 +193,14 @@ export class RpcService {
       case 'auth.resetPassword': {
         this.ensureSuperAdmin(s);
         const email = String(input.email || '').trim().toLowerCase();
-        const u = s.users.find((x: any) => String(x.email).toLowerCase() === email);
+        const u = s.users.find((x: StoreEntity) => String(x.email).toLowerCase() === email);
         if (u && input.newPassword) {
           u.passwordHash = hashPassword(input.newPassword);
           this.db.persist('users');
-          s.authUser = u;
+          s.authUser = toPublicUser(u);
           this.db.persist('authUser');
         }
-        return { user: s.authUser };
+        return { user: toPublicUser(s.authUser) };
       }
       case 'auth.checkReferral':
         return { valid: true, discountPercent: 15, discountPct: 15, name: 'Omnira Super Partner', referrerName: 'Omnira Super Partner' };
@@ -198,7 +211,7 @@ export class RpcService {
       case 'auth.changePassword': {
         this.ensureSuperAdmin(s);
         if (s.authUser && input.newPassword) {
-          const u = s.users.find((x: any) => String(x.email).toLowerCase() === String(s.authUser.email).toLowerCase());
+          const u = s.users.find((x: StoreEntity) => String(x.email).toLowerCase() === String(s.authUser?.email).toLowerCase());
           if (u) {
             u.passwordHash = hashPassword(input.newPassword);
             this.db.persist('users');
@@ -382,7 +395,7 @@ export class RpcService {
         const queued = posts.filter((p) => p.status === 'queued').length;
         const failed = posts.filter((p) => p.status === 'failed').length;
 
-        const dayMap = new Map<string, any>();
+        const dayMap = new Map<string, StoreEntity>();
         for (const m of s.channelMetricsDaily) {
           if (input.workspaceId && !chanIds.has(m.channelId)) continue;
           const ch = s.channels.find((c) => c.id === m.channelId);
@@ -511,7 +524,7 @@ export class RpcService {
       case 'workspaces.listArchived':
         return s.workspaces.filter((w) => !!w.archivedAt);
       case 'workspaces.create': {
-        const ws = {
+        const ws: StoreEntity = {
           id: `ws_${newId()}`,
           name: input.name || 'Không gian mới',
           color: input.color || '#c0c1ff',
@@ -621,7 +634,7 @@ export class RpcService {
       case 'accounts.connectYoutube':
       case 'accounts.importFacebook': {
         const pf = endpoint.includes('Tiktok') ? 'tiktok' : endpoint.includes('Youtube') ? 'youtube' : 'facebook';
-        const acc = {
+        const acc: StoreEntity = {
           id: `acc_${newId()}`,
           workspaceId: input.workspaceId || s.workspaces[0]?.id,
           platform: pf,
@@ -747,20 +760,20 @@ export class RpcService {
         return s.settings['integrations.meta'];
       case 'integrations.setMeta':
       case 'integrations.setInstagram':
-        s.settings['integrations.meta'] = { ...s.settings['integrations.meta'], ...input };
+        s.settings['integrations.meta'] = { ...(s.settings['integrations.meta'] as StoreEntity), ...input };
         this.db.persist('settings');
         return s.settings['integrations.meta'];
       case 'integrations.tiktok':
         return s.settings['integrations.tiktok'];
       case 'integrations.setTiktok':
-        s.settings['integrations.tiktok'] = { ...s.settings['integrations.tiktok'], ...input };
+        s.settings['integrations.tiktok'] = { ...(s.settings['integrations.tiktok'] as StoreEntity), ...input };
         this.db.persist('settings');
         return s.settings['integrations.tiktok'];
       case 'integrations.youtube':
         return s.settings['integrations.youtube'];
       case 'integrations.setYoutube':
       case 'integrations.setYoutubePublish':
-        s.settings['integrations.youtube'] = { ...s.settings['integrations.youtube'], ...input };
+        s.settings['integrations.youtube'] = { ...(s.settings['integrations.youtube'] as StoreEntity), ...input };
         this.db.persist('settings');
         return s.settings['integrations.youtube'];
 
@@ -776,7 +789,7 @@ export class RpcService {
             return s.contentIdeas[idx];
           }
         }
-        const idea = {
+        const idea: StoreEntity = {
           id: `idea_${newId()}`,
           workspaceId: input.workspaceId || s.workspaces[0]?.id,
           plannedDate: input.plannedDate || new Date().toISOString().slice(0, 10),
@@ -798,10 +811,10 @@ export class RpcService {
       case 'plan.generate': {
         const ws = s.workspaces.find((w) => w.id === input.workspaceId) || s.workspaces[0];
         const count = Math.min(14, Math.max(1, (input.days || 3) * (input.perDay || 1)));
-        const created: any[] = [];
+        const created: StoreEntity[] = [];
         for (let i = 0; i < count; i++) {
           const dateStr = new Date(now + i * DAY).toISOString().slice(0, 10);
-          const idea = {
+          const idea: StoreEntity = {
             id: `idea_${newId()}`,
             workspaceId: ws?.id || null,
             plannedDate: dateStr,
@@ -864,7 +877,7 @@ export class RpcService {
       }
       case 'plan.toVideo': {
         const idea = s.contentIdeas.find((i) => i.id === input.id);
-        const vp = {
+        const vp: StoreEntity = {
           id: `vp_${newId()}`,
           workspaceId: idea?.workspaceId || s.workspaces[0]?.id,
           topic: idea?.title || 'Dự án Video từ Kế hoạch',
@@ -894,7 +907,7 @@ export class RpcService {
       }
       case 'plan.toImage': {
         const idea = s.contentIdeas.find((i) => i.id === input.id);
-        const imgp = {
+        const imgp: StoreEntity = {
           id: `imgp_${newId()}`,
           workspaceId: idea?.workspaceId || s.workspaces[0]?.id,
           title: idea?.title || 'Dự án Ảnh từ Kế hoạch',
@@ -994,7 +1007,7 @@ export class RpcService {
         const targetIds: string[] = Array.isArray(input.ids) && input.ids.length
           ? input.ids
           : [input.contentItemId || input.id || s.contentItems[0]?.id].filter(Boolean);
-        const createdVariants: any[] = [];
+        const createdVariants: StoreEntity[] = [];
         for (const tid of targetIds) {
           const item = s.contentItems.find((i) => i.id === tid);
           if (!item) continue;
@@ -1169,7 +1182,7 @@ export class RpcService {
           }
         }
         const existing = s.seriesEpisodes.filter((e) => e.seriesId === input.seriesId);
-        const ep = {
+        const ep: StoreEntity = {
           id: `ep_${newId()}`,
           seriesId: input.seriesId || s.series[0]?.id,
           episodeNumber: input.episodeNumber || existing.length + 1,
@@ -1192,10 +1205,10 @@ export class RpcService {
         const serId = input.id || input.seriesId || s.series[0]?.id;
         const existing = s.seriesEpisodes.filter((e) => e.seriesId === serId);
         const count = Number(input.episodes) || 3;
-        const added: any[] = [];
+        const added: StoreEntity[] = [];
         for (let i = 1; i <= count; i++) {
           const epNum = existing.length + i;
-          const ep = {
+          const ep: StoreEntity = {
             id: `ep_${newId()}`,
             seriesId: serId,
             episodeNumber: epNum,
@@ -1265,7 +1278,7 @@ export class RpcService {
         };
       }
       case 'studio.create': {
-        const vp = {
+        const vp: StoreEntity = {
           id: `vp_${newId()}`,
           workspaceId: input.workspaceId || s.workspaces[0]?.id,
           topic: input.topic || 'Dự án Video AI mới',
@@ -1355,7 +1368,7 @@ export class RpcService {
         const pid = input.projectId || input.id;
         if (pid && Array.isArray(input.scenes)) {
           s.videoScenes = s.videoScenes.filter((sc) => sc.projectId !== pid);
-          input.scenes.forEach((sc: any, i: number) => {
+          input.scenes.forEach((sc: StoreEntity, i: number) => {
             s.videoScenes.push({
               ...sc,
               id: sc.id || `sc_${newId()}`,
@@ -1714,7 +1727,7 @@ export class RpcService {
       case 'clone.get':
         return s.cloneJobs.find((j) => j.id === input.id) || s.cloneJobs[0] || null;
       case 'clone.start': {
-        const job = {
+        const job: StoreEntity = {
           id: `clone_${newId()}`,
           workspaceId: input.workspaceId || s.workspaces[0]?.id,
           sourceName: input.sourceName || input.url || 'viral_video_sample.mp4',
@@ -1749,13 +1762,13 @@ export class RpcService {
       }
       case 'clone.toFilm': {
         const job = s.cloneJobs.find((j) => j.id === (input.id || input.jobId)) || s.cloneJobs[0];
-        const film = await this.handleEndpoint('film.create', {
+        const film = (await this.handleEndpoint('film.create', {
           workspaceId: job?.workspaceId,
           title: `Clone: ${job?.sourceName || 'Video mẫu'}`,
-          idea: job?.analysis?.summary || 'Dự án phim được dựng lại từ Clone Video AI',
-        });
+          idea: String(job?.analysis?.summary || 'Dự án phim được dựng lại từ Clone Video AI'),
+        })) as StoreEntity;
         await this.handleEndpoint('film.generateScript', { id: film.id });
-        if (job) job.filmId = film.id;
+        if (job) job.filmId = String(film.id);
         this.db.persist('cloneJobs');
         return { filmId: film.id, film };
       }
@@ -1783,7 +1796,7 @@ export class RpcService {
         };
       }
       case 'imagestudio.create': {
-        const p = {
+        const p: StoreEntity = {
           id: `imgp_${newId()}`,
           workspaceId: input.workspaceId || s.workspaces[0]?.id,
           title: input.title || 'Bộ ảnh AI Mới',
@@ -1851,7 +1864,7 @@ export class RpcService {
           'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=800&auto=format&fit=crop&q=80',
           'https://images.unsplash.com/photo-1487222477894-8943e31ef7b2?w=800&auto=format&fit=crop&q=80',
         ];
-        const created: any[] = [];
+        const created: StoreEntity[] = [];
         for (let i = 0; i < 2; i++) {
           const r = {
             id: `imgr_${newId()}`,
@@ -2019,10 +2032,10 @@ export class RpcService {
           ? input.channelIds
           : input.channelId
           ? [input.channelId]
-          : [s.channels[0]?.id];
-        const created: any[] = [];
+          : [String(s.channels[0]?.id)];
+        const created: StoreEntity[] = [];
         for (const cid of channelIds) {
-          const sp = {
+          const sp: StoreEntity = {
             id: `sp_${newId()}`,
             contentItemId: input.contentItemId || s.contentItems[0]?.id,
             channelId: cid,
@@ -2041,20 +2054,20 @@ export class RpcService {
         return created;
       }
       case 'posts.autoSchedule': {
-        const idSet = Array.isArray(input.contentIds) && input.contentIds.length ? new Set(input.contentIds) : null;
+        const idSet = Array.isArray(input.contentIds) && input.contentIds.length ? new Set<string | number>(input.contentIds) : null;
         const readyItems = idSet
           ? s.contentItems.filter((i) => idSet.has(i.id))
           : this.filterByWorkspace(s.contentItems, input.workspaceId).filter((i) => i.status === 'ready');
         const chans = this.filterByWorkspace(s.channels, input.workspaceId);
         const spacingMs = (Number(input.spacingHours) || 4) * 3600000;
-        const created: any[] = [];
+        const created: StoreEntity[] = [];
         readyItems.forEach((item, idx) => {
           const ch = chans[idx % Math.max(1, chans.length)] || s.channels[0];
           if (!ch) return;
-          const sp = {
+          const sp: StoreEntity = {
             id: `sp_${newId()}`,
-            contentItemId: item.id,
-            channelId: ch.id,
+            contentItemId: String(item.id),
+            channelId: String(ch.id),
             scheduledAt: now + (idx + 1) * spacingMs,
             status: 'queued',
             isGoldenHour: true,
@@ -2105,7 +2118,7 @@ export class RpcService {
         this.db.persist('settings');
         return { enabled: s.settings['posts.worker'] };
       case 'posts.stagger': {
-        const stg = s.settings['posts.stagger'] || { enabled: true, minMinutes: 1, maxMinutes: 3, minSec: 60, maxSec: 180 };
+        const stg = (s.settings['posts.stagger'] as StoreEntity) || { enabled: true, minMinutes: 1, maxMinutes: 3, minSec: 60, maxSec: 180 };
         return {
           enabled: stg.enabled ?? true,
           minMinutes: stg.minMinutes ?? Math.round((stg.minSec ?? 60) / 60),
@@ -2119,8 +2132,8 @@ export class RpcService {
           enabled: input.enabled ?? true,
           minMinutes: input.minMinutes ?? 1,
           maxMinutes: input.maxMinutes ?? 3,
-          minSec: input.minSec ?? (input.minMinutes ?? 1) * 60,
-          maxSec: input.maxSec ?? (input.maxMinutes ?? 3) * 60,
+          minSec: input.minSec ?? Number(input.minMinutes ?? 1) * 60,
+          maxSec: input.maxSec ?? Number(input.maxMinutes ?? 3) * 60,
         };
         this.db.persist('settings');
         return s.settings['posts.stagger'];
@@ -2165,7 +2178,7 @@ export class RpcService {
       }
       case 'inbox.suggestReply': {
         const conv = s.conversations.find((c) => c.id === input.conversationId);
-        const draft = {
+        const draft: StoreEntity = {
           id: `msg_${newId()}`,
           conversationId: input.conversationId,
           direction: 'out',
@@ -2270,7 +2283,7 @@ export class RpcService {
       case 'inbox.aiSettings':
         return s.settings['inbox.ai'];
       case 'inbox.setAiSettings':
-        s.settings['inbox.ai'] = { ...s.settings['inbox.ai'], ...input };
+        s.settings['inbox.ai'] = { ...(s.settings['inbox.ai'] as StoreEntity), ...input };
         this.db.persist('settings');
         return s.settings['inbox.ai'];
       case 'inbox.worker':
@@ -2285,15 +2298,15 @@ export class RpcService {
         return { ok: true };
       case 'inbox.pickAttachments': {
         const paths = Array.isArray(input.files)
-          ? input.files.map((f: any) => f.dataUrl || f.name)
+          ? input.files.map((f: StoreEntity) => f.dataUrl || f.name)
           : ['https://images.unsplash.com/photo-1539109136881-3be0616acf4b?w=400&auto=format&fit=crop&q=80'];
         return { paths };
       }
 
       // ── 16. ANALYTICS & INSIGHTS ──
       case 'analytics.overview': {
-        const sum = await this.handleEndpoint('dashboard.summary', input);
-        const topChans = await this.handleEndpoint('dashboard.topChannels', { ...input, limit: 10 });
+        const sum = (await this.handleEndpoint('dashboard.summary', input)) as StoreEntity;
+        const topChans = (await this.handleEndpoint('dashboard.topChannels', { ...input, limit: 10 })) as StoreEntity[];
         const published = s.scheduledPosts
           .filter((p) => p.status === 'published' && (!input.channelId || p.channelId === input.channelId))
           .map((p) => {
@@ -2309,11 +2322,12 @@ export class RpcService {
               platform: ch?.platform || 'instagram',
             };
           });
+        const reachData = sum.reach as StoreEntity;
         return {
-          posts: Math.max(published.length, sum.posts.publishedThisMonth || 18),
+          posts: Math.max(published.length, Number(sum.posts?.publishedThisMonth) || 18),
           postsWithMetrics: Math.max(published.length, 15),
-          totalViews: sum.reach.views30d,
-          totalEngagements: sum.reach.engagements30d,
+          totalViews: reachData?.views30d,
+          totalEngagements: reachData?.engagements30d,
           avgRetention: 64,
           byFormat: [
             { key: 'reel', label: 'Reels / TikTok ngắn', posts: 10, avgViews: 68400, avgEngagements: 5920, avgRetention: 68 },
@@ -2328,13 +2342,13 @@ export class RpcService {
           top: published,
           bottom: [...published].reverse(),
           totals: {
-            views: sum.reach.views30d,
-            engagements: sum.reach.engagements30d,
-            followers: topChans.reduce((a: number, c: any) => a + (c.followers || 0), 0),
-            publishedPosts: sum.posts.publishedThisMonth,
+            views: reachData?.views30d,
+            engagements: reachData?.engagements30d,
+            followers: topChans.reduce((a: number, c: StoreEntity) => a + (c.followers || 0), 0),
+            publishedPosts: sum.posts?.publishedThisMonth,
           },
-          series: sum.reach.series,
-          byPlatform: sum.reach.platforms,
+          series: reachData?.series,
+          byPlatform: reachData?.platforms,
           channels: topChans,
           topPosts: published,
         };
@@ -2618,14 +2632,14 @@ export class RpcService {
       case 'system.background':
         return s.settings['system.background'] || { preset: 'aurora', opacity: 0.25, blur: 32 };
       case 'system.setBackground':
-        s.settings['system.background'] = { ...s.settings['system.background'], ...input };
+        s.settings['system.background'] = { ...(s.settings['system.background'] as StoreEntity), ...input };
         this.db.persist('settings');
         return s.settings['system.background'];
       case 'system.pickImage':
         if (Array.isArray(input.files) && input.files[0]?.dataUrl) return input.files[0].dataUrl;
         return 'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?w=800&auto=format&fit=crop&q=80';
       case 'system.pickMedia':
-        if (Array.isArray(input.files) && input.files.length) return input.files.map((f: any) => f.dataUrl || f.name);
+        if (Array.isArray(input.files) && input.files.length) return input.files.map((f: StoreEntity) => f.dataUrl || f.name);
         return ['https://images.unsplash.com/photo-1539109136881-3be0616acf4b?w=800&auto=format&fit=crop&q=80'];
       case 'system.pickVideo':
         return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';

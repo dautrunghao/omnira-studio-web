@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { DynamicEntity } from '../core/models';
 import { OmniApiService } from '../core/omni-api.service';
 import { IconComponent } from '../shared/icon.component';
 import { ModalComponent } from '../shared/modal.component';
@@ -49,7 +50,7 @@ export class BuyPlanDialogComponent {
   readonly shell = inject(ShellStore);
   readonly plans = signal<BillingPlan[]>([]);
   readonly promos = signal<Promotion[]>([]);
-  readonly referral = signal<any>(null);
+  readonly referral = signal<DynamicEntity | null>(null);
   readonly order = signal<BillingOrder | null>(null);
   readonly loading = signal(false);
   readonly busy = signal<string | null>(null);
@@ -64,9 +65,9 @@ export class BuyPlanDialogComponent {
     });
   }
 
-  private async load() {
+  private async load(): Promise<void> {
     this.loading.set(true);
-    const [p, pr, rf] = await Promise.all([this.api.invokeRaw('billing.plans'), this.api.invokeRaw('billing.promotions'), this.api.invokeRaw('billing.referral')]);
+    const [p, pr, rf] = await Promise.all([this.api.invokeRaw('billing.plans'), this.api.invokeRaw('billing.promotions'), this.api.invokeRaw<DynamicEntity>('billing.referral')]);
     this.loading.set(false);
     this.plans.set(asList<BillingPlan>(p.ok ? p.data : []));
     this.promos.set(asList<Promotion>(pr.ok ? pr.data : []));
@@ -79,7 +80,7 @@ export class BuyPlanDialogComponent {
     }
   }
 
-  async buy(p: BillingPlan) {
+  async buy(p: BillingPlan): Promise<void> {
     this.busy.set(p.code);
     try {
       const o = await this.api.invoke<BillingOrder>('billing.createOrder', { planCode: p.code, usePoints: this.points() > 0 && this.usePoints() });
@@ -92,12 +93,12 @@ export class BuyPlanDialogComponent {
     }
   }
 
-  async onPaid() {
+  async onPaid(): Promise<void> {
     await Promise.all([this.shell.loadLicense(), this.shell.loadAuth()]);
     this.shell.bump('billing', 'license');
   }
 
-  close() {
+  close(): void {
     this.api.buyPlanOpen.set(false);
     this.order.set(null);
   }

@@ -17,7 +17,7 @@ import { NotificationItem, ShellStore } from './shell.store';
       @if (unread() > 0) { <span class="bell-count">{{ unread() > 9 ? '9+' : unread() }}</span> }
     </button>
     @if (open()) {
-      <div class="o-pop" role="dialog" aria-label="Thông báo" style="right: 0; top: 38px; width: 380px; max-height: 70vh; display: flex; flex-direction: column; padding: 0">
+      <div class="o-pop noti-pop" role="dialog" aria-label="Thông báo">
         <div class="flex items-center justify-between px-4 py-3" style="border-bottom: 1px solid rgb(var(--c-overlay) / 0.06)">
           <span class="font-semibold">Thông báo</span>
           <span class="text-label-sm o-muted">Từ Omnira Cloud</span>
@@ -46,6 +46,7 @@ import { NotificationItem, ShellStore } from './shell.store';
   `,
   styles: [
     `.bell-count { position: absolute; right: -2px; top: -2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: rgb(var(--c-error)); color: rgb(var(--c-on-error)); font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+     .noti-pop { right: 0; top: 38px; width: min(380px, calc(100vw - 24px)); max-height: 70vh; display: flex; flex-direction: column; padding: 0; }
      .noti { padding: 10px 16px; border-bottom: 1px solid rgb(var(--c-overlay) / 0.04); }
      .noti.unread { background: rgb(var(--c-primary) / 0.05); }`,
   ],
@@ -53,7 +54,7 @@ import { NotificationItem, ShellStore } from './shell.store';
 export class NotificationBellComponent {
   readonly shell = inject(ShellStore);
   private readonly api = inject(OmniApiService);
-  private readonly el = inject(ElementRef);
+  private readonly el = inject(ElementRef<HTMLElement>);
   readonly open = signal(false);
   readonly unread = () => this.shell.notifications().unread;
   readonly rel = fmtRelative;
@@ -61,16 +62,17 @@ export class NotificationBellComponent {
   constructor() {
     let first = true;
     const poll = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       const fresh: NotificationItem[] = await this.shell.loadNotifications();
       if (!first && fresh[0]) this.api.toast('Thông báo mới', fresh[0].title, 'info');
       first = false;
     };
     void poll();
-    const t = setInterval(poll, 60_000);
+    const t = setInterval((): void => { void poll(); }, 60_000);
     inject(DestroyRef).onDestroy(() => clearInterval(t));
   }
 
-  async toggle() {
+  async toggle(): Promise<void> {
     const next = !this.open();
     this.open.set(next);
     if (!next) return;
@@ -82,11 +84,11 @@ export class NotificationBellComponent {
   }
 
   @HostListener('document:mousedown', ['$event'])
-  onDoc(e: MouseEvent) {
-    if (this.open() && !this.el.nativeElement.contains(e.target)) this.open.set(false);
+  onDoc(e: MouseEvent): void {
+    if (this.open() && !this.el.nativeElement.contains(e.target as Node)) this.open.set(false);
   }
   @HostListener('document:keydown.escape')
-  onEsc() {
+  onEsc(): void {
     this.open.set(false);
   }
 }

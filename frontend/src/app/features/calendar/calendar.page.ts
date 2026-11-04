@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { DynamicEntity } from '../../core/models';
 import { OmniApiService } from '../../core/omni-api.service';
 import { ShellStore } from '../../layout/shell.store';
 import { IconComponent } from '../../shared/icon.component';
@@ -15,7 +16,7 @@ interface PostRow {
   status: string;
   isGoldenHour?: boolean;
   attempts?: number;
-  publishedAt?: any;
+  publishedAt?: string | number | Date | null;
   permalink?: string | null;
   error?: string | null;
   note?: string | null;
@@ -42,10 +43,14 @@ const STATUS: Record<string, { l: string; tone: string }> = {
 const WD = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
-function normRow(r: any): PostRow {
+function normRow(r: DynamicEntity): PostRow {
   const p = r.post ?? r;
   return {
     ...p,
+    id: String(p.id ?? ''),
+    contentItemId: String(p.contentItemId ?? ''),
+    channelId: String(p.channelId ?? ''),
+    status: String(p.status ?? 'queued'),
     scheduledAt: toDate(p.scheduledAt)?.getTime() ?? 0,
     title: r.contentTitle ?? r.title ?? p.title ?? 'Bài đăng',
     kind: r.contentKind ?? r.kind ?? p.kind,
@@ -273,6 +278,7 @@ function normRow(r: any): PostRow {
      .pc.st-failed { border-left-color: rgb(var(--c-danger)); background: rgb(var(--c-danger) / 0.1); }
      .pc.st-cancelled, .pc.st-canceled { opacity: .45; text-decoration: line-through; }
      .month { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+     @media (max-width: 900px) { .month { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mwd { display: none; } }
      .mwd { font-size: .6875rem; font-weight: 600; color: rgb(var(--c-outline)); padding: 0 6px; }
      .mday { min-height: 120px; background: rgb(var(--c-surface-container-low)); border: 1px solid rgb(var(--c-overlay) / 0.05); border-radius: 12px; padding: 6px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
      .mday.out { opacity: .45; } .mday.today { border-color: rgb(var(--c-primary) / 0.55); }
@@ -293,13 +299,13 @@ export class CalendarPageComponent {
   readonly platforms = signal<Set<string>>(new Set(['facebook', 'tiktok', 'instagram', 'youtube']));
   readonly sel = signal<PostRow | null>(null);
   readonly over = signal<string | null>(null);
-  readonly worker = signal<any>(null);
+  readonly worker = signal<DynamicEntity | null>(null);
   readonly busy = signal(false);
   readonly manualOpen = signal(false);
   readonly autoOpen = signal(false);
   readonly staggerOpen = signal(false);
-  readonly contents = signal<any[]>([]);
-  readonly channels = signal<any[]>([]);
+  readonly contents = signal<DynamicEntity[]>([]);
+  readonly channels = signal<DynamicEntity[]>([]);
   dragId: string | null = null;
   resched = '';
   man = { contentId: '', channels: new Set<string>(), at: toLocalInput(Date.now() + 3600000) };
@@ -420,7 +426,7 @@ export class CalendarPageComponent {
   }
 
   private async loadMeta() {
-    const [w, s] = await Promise.all([this.api.invokeRaw<any>('posts.worker'), this.api.invokeRaw<any>('posts.stagger')]);
+    const [w, s] = await Promise.all([this.api.invokeRaw<DynamicEntity | boolean>('posts.worker'), this.api.invokeRaw<DynamicEntity>('posts.stagger')]);
     if (w.ok) this.worker.set(typeof w.data === 'boolean' ? { enabled: w.data } : { enabled: w.data?.enabled ?? w.data?.running ?? true, ...w.data });
     if (s.ok && s.data) {
       const d = s.data;
@@ -436,12 +442,12 @@ export class CalendarPageComponent {
     const ws = this.api.activeWorkspaceId();
     const [c, ch] = await Promise.all([this.api.invokeRaw('content.list', { workspaceId: ws }), this.api.invokeRaw('channels.list', { workspaceId: ws })]);
     this.contents.set(asList(c.ok ? c.data : []));
-    this.channels.set(asList(ch.ok ? ch.data : []).map((x: any) => x.channel ?? x));
+    this.channels.set(asList(ch.ok ? ch.data : []).map((x: DynamicEntity) => x.channel ?? x));
   }
 
   async toggleWorker() {
     const next = !this.worker()?.enabled;
-    const r = await this.api.invokeRaw<any>('posts.setWorker', { enabled: next });
+    const r = await this.api.invokeRaw<DynamicEntity>('posts.setWorker', { enabled: next });
     if (!r.ok) return this.api.toast('Không đổi được trình đăng bài', errOf(r), 'error');
     this.worker.set({ ...(this.worker() ?? {}), ...(typeof r.data === 'object' ? r.data : {}), enabled: next });
     this.api.toast(next ? 'Đã bật đăng bài tự động' : 'Đã tạm dừng đăng bài tự động', undefined, next ? 'success' : 'warn');
@@ -463,7 +469,7 @@ export class CalendarPageComponent {
     this.busy.set(true);
     let ok = 0;
     for (const channelId of this.man.channels) {
-      const r = await this.api.invokeRaw<any>('posts.schedule', { contentItemId: this.man.contentId, channelId, scheduledAt: at });
+      const r = await this.api.invokeRaw<DynamicEntity>('posts.schedule', { contentItemId: this.man.contentId, channelId, scheduledAt: at });
       if (r.ok) ok++;
       else this.api.toast('Không lên lịch được', errOf(r), 'error');
     }
@@ -492,7 +498,7 @@ export class CalendarPageComponent {
   }
   async runAuto() {
     this.busy.set(true);
-    const r = await this.api.invokeRaw<any>('posts.autoSchedule', { contentIds: [...this.auto.ids], spacingHours: +this.auto.spacing });
+    const r = await this.api.invokeRaw<DynamicEntity>('posts.autoSchedule', { contentIds: [...this.auto.ids], spacingHours: +this.auto.spacing });
     this.busy.set(false);
     if (!r.ok) return this.api.toast('Không tự xếp lịch được', errOf(r), 'error');
     this.autoOpen.set(false);
@@ -517,7 +523,7 @@ export class CalendarPageComponent {
     const at = new Date(local).getTime();
     if (!at || at < Date.now()) return this.api.toast('Chọn thời gian trong tương lai', undefined, 'warn');
     this.busy.set(true);
-    const r = await this.api.invokeRaw<any>('posts.reschedule', { id: p.id, scheduledAt: at });
+    const r = await this.api.invokeRaw<DynamicEntity | number>('posts.reschedule', { id: p.id, scheduledAt: at });
     this.busy.set(false);
     if (!r.ok) return this.api.toast('Không dời được lịch', errOf(r), 'error');
     const real = typeof r.data === 'number' ? r.data : (r.data?.scheduledAt ?? at);

@@ -1,4 +1,5 @@
 import { Injectable, signal } from '@angular/core';
+import { DynamicEntity } from './models';
 
 export type ApiErrorCode =
   | 'VALIDATION'
@@ -18,9 +19,9 @@ export interface ApiErrorPayload {
   message: string;
 }
 
-export type ApiResult<T = any> =
-  | { ok: true; data: T }
-  | { ok: false; error: ApiErrorPayload };
+export type ApiResult<T = DynamicEntity> =
+  | { ok: true; data: T; error?: undefined }
+  | { ok: false; data?: undefined; error: ApiErrorPayload };
 
 export interface SystemStats {
   cpuPercent: number;
@@ -38,15 +39,30 @@ export interface ToastItem {
   message?: string;
 }
 
+export type ThemeMode = 'dark' | 'light' | 'halloween' | 'system';
+
+const DEDUPABLE_PREFIXES = [
+  'auth.state',
+  'license.state',
+  'workspaces.list',
+  'channels.list',
+  'channels.quota',
+  'dashboard.summary',
+  'dashboard.topChannels',
+  'dashboard.daemon',
+  'alerts.open',
+  'inbox.stats',
+  'media.status',
+  'cloud.notifications',
+];
+
 @Injectable({ providedIn: 'root' })
 export class OmniApiService {
   readonly activeWorkspaceId = signal<string | null>(
-    typeof localStorage !== 'undefined' ? localStorage.getItem('omni.workspaceId') : null
+    typeof localStorage !== 'undefined' ? localStorage.getItem('omni.workspaceId') : null,
   );
-  readonly theme = signal<'dark' | 'light' | 'halloween' | 'system'>(
-    (typeof localStorage !== 'undefined'
-      ? (localStorage.getItem('omni.theme') as any)
-      : null) || 'dark'
+  readonly theme = signal<ThemeMode>(
+    this.readStoredTheme(),
   );
   readonly systemStats = signal<SystemStats>({
     cpuPercent: 14,
@@ -60,7 +76,8 @@ export class OmniApiService {
   readonly commandPaletteOpen = signal<boolean>(false);
   readonly buyPlanOpen = signal<boolean>(false);
 
-  private statsTimer: any;
+  private statsTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly inflightRequests = new Map<string, Promise<ApiResult<unknown>>>();
 
   constructor() {
     this.applyTheme(this.theme());
@@ -68,7 +85,16 @@ export class OmniApiService {
     this.startStatsPolling();
   }
 
-  setWorkspaceId(id: string | null) {
+  private readStoredTheme(): ThemeMode {
+    if (typeof localStorage === 'undefined') return 'dark';
+    const raw = localStorage.getItem('omni.theme');
+    if (raw === 'dark' || raw === 'light' || raw === 'halloween' || raw === 'system') {
+      return raw;
+    }
+    return 'dark';
+  }
+
+  setWorkspaceId(id: string | null): void {
     this.activeWorkspaceId.set(id);
     if (typeof localStorage !== 'undefined') {
       if (id) localStorage.setItem('omni.workspaceId', id);
@@ -76,7 +102,7 @@ export class OmniApiService {
     }
   }
 
-  applyTheme(theme: 'dark' | 'light' | 'halloween' | 'system') {
+  applyTheme(theme: ThemeMode): void {
     this.theme.set(theme);
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('omni.theme', theme);
@@ -93,20 +119,45 @@ export class OmniApiService {
     }
   }
 
-  toast(title: string, message?: string, tone: ToastItem['tone'] = 'info') {
+  toast(title: string, message?: string, tone: ToastItem['tone'] = 'info'): void {
     const id = Math.random().toString(36).slice(2, 10);
-    this.toasts.update((list) => [...list, { id, title, message, tone }]);
+    this.toasts.update((list) => [...list.slice(-4), { id, title, message, tone }]);
     setTimeout(() => {
       this.toasts.update((list) => list.filter((t) => t.id !== id));
-    }, 4200);
+    }, 4000);
   }
 
-  dismissToast(id: string) {
+  dismissToast(id: string): void {
     this.toasts.update((list) => list.filter((t) => t.id !== id));
   }
 
-  async invokeRaw<T = any>(endpoint: string, input?: any): Promise<ApiResult<T>> {
+  async invokeRaw<T = DynamicEntity>(endpoint: string, input?: unknown): Promise<ApiResult<T>> {
     const body = JSON.stringify(input ?? {});
+    const isDedupable = DEDUPABLE_PREFIXES.includes(endpoint);
+    const cacheKey = isDedupable ? `${endpoint}:${body}` : '';
+
+    if (cacheKey) {
+      const existing = this.inflightRequests.get(cacheKey);
+      if (existing) {
+        return (await existing) as ApiResult<T>;
+      }
+    }
+
+    const requestPromise = this.performFetch<T>(endpoint, body);
+    if (cacheKey) {
+      this.inflightRequests.set(cacheKey, requestPromise as Promise<ApiResult<unknown>>);
+    }
+
+    try {
+      return await requestPromise;
+    } finally {
+      if (cacheKey) {
+        this.inflightRequests.delete(cacheKey);
+      }
+    }
+  }
+
+  private async performFetch<T>(endpoint: string, body: string): Promise<ApiResult<T>> {
     const path = `/api/rpc/${encodeURIComponent(endpoint)}`;
     const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
     const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
@@ -118,7 +169,10 @@ export class OmniApiService {
       try {
         const res = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(this.activeWorkspaceId() ? { 'X-Workspace-Id': this.activeWorkspaceId()! } : {}),
+          },
           body,
         });
         const ct = res.headers.get('content-type') || '';
@@ -126,13 +180,13 @@ export class OmniApiService {
           lastErr = `Máy chủ trả về định dạng không hợp lệ (${res.status})`;
           continue;
         }
-        const json = await res.json();
-        if (json && typeof json.ok === 'boolean') {
+        const json = (await res.json()) as { ok?: boolean; data?: T; error?: ApiErrorPayload } | T;
+        if (json && typeof json === 'object' && 'ok' in json && typeof json.ok === 'boolean') {
           return json as ApiResult<T>;
         }
         return { ok: true, data: json as T };
-      } catch (err: any) {
-        lastErr = err?.message || lastErr;
+      } catch (err: unknown) {
+        lastErr = err instanceof Error ? err.message : lastErr;
       }
     }
     return {
@@ -144,19 +198,22 @@ export class OmniApiService {
     };
   }
 
-  async invoke<T = any>(endpoint: string, input?: any): Promise<T> {
+  async invoke<T = DynamicEntity>(endpoint: string, input?: unknown): Promise<T> {
     const res = await this.invokeRaw<T>(endpoint, input);
     if (!res.ok) {
-      const errMsg = (res as { ok: false; error: ApiErrorPayload }).error?.message || 'Lỗi gọi API';
+      const errMsg = res.error?.message || 'Lỗi gọi API';
       this.toast('Lỗi thao tác', errMsg, 'error');
       throw new Error(errMsg);
     }
     return res.data;
   }
 
-  private startStatsPolling() {
+  private startStatsPolling(): void {
     if (typeof window === 'undefined') return;
     this.statsTimer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
       const prev = this.systemStats();
       this.systemStats.set({
         cpuPercent: Math.max(4, Math.min(65, Math.round(prev.cpuPercent + (Math.random() * 8 - 4)))),
@@ -169,10 +226,9 @@ export class OmniApiService {
     }, 5000);
   }
 
-  private exposeWindowBridge() {
+  private exposeWindowBridge(): void {
     if (typeof window === 'undefined') return;
-    const self = this;
-    (window as any).omni = {
+    window.omni = {
       window: {
         minimize: () => {},
         toggleMaximize: () => {
@@ -180,7 +236,7 @@ export class OmniApiService {
           else document.exitFullscreen?.().catch(() => {});
         },
         close: () => {},
-        onStateChanged: (cb: any) => {
+        onStateChanged: (cb) => {
           cb({ isMaximized: false, isFocused: true });
           return () => {};
         },
@@ -192,22 +248,22 @@ export class OmniApiService {
           platform: 'web',
           electron: 'Web Edition (Angular v22 + NestJS + Firebase)',
         }),
-        setTheme: (t: any) => self.applyTheme(t),
-        onNavigate: (_cb: any) => () => {},
-        onLicenseChanged: (_cb: any) => () => {},
+        setTheme: (t) => this.applyTheme(t),
+        onNavigate: () => () => {},
+        onLicenseChanged: () => () => {},
       },
       system: {
-        onStats: (cb: any) => {
-          const timer = setInterval(() => cb(self.systemStats()), 5000);
-          cb(self.systemStats());
+        onStats: (cb) => {
+          const timer = setInterval(() => cb(this.systemStats()), 5000);
+          cb(this.systemStats());
           return () => clearInterval(timer);
         },
       },
       inbox: {
-        onChanged: (_cb: any) => () => {},
+        onChanged: () => () => {},
       },
       api: {
-        invoke: (endpoint: string, input?: any) => self.invokeRaw(endpoint, input),
+        invoke: (endpoint: string, input?: unknown) => this.invokeRaw(endpoint, input),
       },
     };
   }

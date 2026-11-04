@@ -17,9 +17,9 @@ export interface BillingOrder {
   qrUrl?: string | null;
   checkoutUrl?: string | null;
   bank?: { code?: string; name?: string; accountNo?: string; accountName?: string } | null;
-  expiresAt?: any;
-  createdAt?: any;
-  paidAt?: any;
+  expiresAt?: string | number | Date | null;
+  createdAt?: string | number | Date | null;
+  paidAt?: string | number | Date | null;
 }
 
 /** Khung thanh toán đơn: QR VietQR / PayOS + thông tin chuyển khoản, tự hỏi trạng thái (billing.order) mỗi 4 giây. */
@@ -73,7 +73,7 @@ export interface BillingOrder {
     `.pay { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
      .qr { display: flex; flex-direction: column; align-items: center; gap: 8px; }
      .qr img { width: 200px; height: 200px; border-radius: 12px; background: #fff; padding: 8px; cursor: zoom-in; transition: width .15s, height .15s; }
-     .qr img.big { width: 300px; height: 300px; cursor: zoom-out; }
+     .qr img.big { width: min(300px, calc(100vw - 48px)); height: min(300px, calc(100vw - 48px)); cursor: zoom-out; }
      .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: .8125rem; }`,
   ],
 })
@@ -86,18 +86,18 @@ export class OrderPaymentComponent {
   readonly checking = signal(false);
   readonly vnd = fmtVnd;
   readonly dt = fmtDateTime;
-  private timer: any;
+  private timer: ReturnType<typeof setInterval> | undefined;
 
   constructor() {
     effect(() => {
       this.cur.set(this.order());
       clearInterval(this.timer);
-      if (this.order().status === 'PENDING') this.timer = setInterval(() => this.check(true), 4000);
+      if (this.order().status === 'PENDING') this.timer = setInterval((): void => { void this.check(true); }, 4000);
     });
     inject(DestroyRef).onDestroy(() => clearInterval(this.timer));
   }
 
-  async check(silent = false) {
+  async check(silent = false): Promise<void> {
     const o = this.cur();
     if (!o) return;
     if (!silent) this.checking.set(true);
@@ -115,7 +115,7 @@ export class OrderPaymentComponent {
     } else if (!silent) this.api.toast('Chưa nhận được thanh toán', 'Hệ thống tự kiểm tra lại mỗi vài giây', 'info');
   }
 
-  copy(v: string, what: string) {
+  copy(v: string, what: string): void {
     void navigator.clipboard?.writeText(v);
     this.api.toast(`Đã chép ${what}`, v, 'success');
   }

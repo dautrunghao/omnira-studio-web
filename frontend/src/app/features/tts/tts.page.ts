@@ -1,6 +1,7 @@
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DynamicEntity } from '../../core/models';
 import { OmniApiService } from '../../core/omni-api.service';
 
 interface SpeakerStat {
@@ -270,9 +271,9 @@ interface SpeakerStat {
 export class TtsPage implements OnInit {
   private readonly api = inject(OmniApiService);
 
-  readonly jobs = signal<any[]>([]);
-  readonly voices = signal<any[]>([]);
-  readonly localStatus = signal<any | null>(null);
+  readonly jobs = signal<DynamicEntity[]>([]);
+  readonly voices = signal<DynamicEntity[]>([]);
+  readonly localStatus = signal<DynamicEntity | null>(null);
   readonly provider = signal('google_tts');
   readonly draftText = signal(
     `[Người dẫn]: Chào mừng bạn đến với Omnira Studio — nền tảng tự động hóa sáng tạo đa kênh.\n[Minh Anh]: Chỉ cần nhập kịch bản phân vai như thế này, mỗi nhân vật sẽ tự động đọc bằng một giọng riêng biệt!\n[Hoàng Nam]: Và đặc biệt là xuất kèm file phụ đề SRT khớp từng mili-giây để dựng phim ngay lập tức.`
@@ -309,9 +310,9 @@ export class TtsPage implements OnInit {
 
   async ngOnInit() {
     const [jobList, vList, loc] = await Promise.all([
-      this.api.invoke<any[]>('tts.list', {}),
-      this.api.invoke<any[]>('media.voices', { provider: this.provider() }),
-      this.api.invoke<any>('localtts.status', {}),
+      this.api.invoke<DynamicEntity[]>('tts.list', {}),
+      this.api.invoke<DynamicEntity[]>('media.voices', { provider: this.provider() }),
+      this.api.invoke<DynamicEntity>('localtts.status', {}),
     ]);
     this.jobs.set(jobList || []);
     this.voices.set(vList || []);
@@ -320,7 +321,7 @@ export class TtsPage implements OnInit {
 
   async changeProvider(prov: string) {
     this.provider.set(prov);
-    const vList = await this.api.invoke<any[]>('media.voices', { provider: prov });
+    const vList = await this.api.invoke<DynamicEntity[]>('media.voices', { provider: prov });
     this.voices.set(vList || []);
     if (vList?.length) {
       this.voiceId = vList[0].id;
@@ -346,7 +347,7 @@ export class TtsPage implements OnInit {
   }
 
   async previewVoice(vid: string) {
-    const res = await this.api.invoke<any>('media.previewVoice', {
+    const res = await this.api.invoke<DynamicEntity>('media.previewVoice', {
       provider: this.provider(),
       voiceId: vid,
     });
@@ -358,7 +359,7 @@ export class TtsPage implements OnInit {
     this.creating.set(true);
     try {
       const selectedVoice = this.voices().find((v) => v.id === this.voiceId);
-      const job = await this.api.invoke<any>('tts.create', {
+      const job = await this.api.invoke<DynamicEntity>('tts.create', {
         title: this.draftTitle.trim() || 'Bản thu TTS mới',
         text: this.draftText(),
         provider: this.provider(),
@@ -375,7 +376,7 @@ export class TtsPage implements OnInit {
     }
   }
 
-  async exportFile(job: any, kind: 'audio' | 'srt') {
+  async exportFile(job: DynamicEntity, kind: 'audio' | 'srt') {
     await this.api.invoke('tts.export', { id: job.id, kind });
     this.toastMsg.set(
       kind === 'srt'

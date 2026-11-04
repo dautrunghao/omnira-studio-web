@@ -1,16 +1,20 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import * as admin from 'firebase-admin';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { createInitialSeedStore, OmniStore } from '../rpc/seed-data';
+import { createInitialSeedStore, OmniStore, StoreEntity } from '../rpc/seed-data';
 
 @Injectable()
-export class FirestoreService implements OnModuleInit {
+export class FirestoreService implements OnModuleInit, OnModuleDestroy {
   readonly projectId = process.env.FIREBASE_PROJECT_ID || 'omnira-studio-11041651';
   private firestoreDb: admin.firestore.Firestore | null = null;
   private firestoreReady = false;
   private store!: OmniStore;
   private readonly dataFile: string;
+  private flushTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly dirtyCollections = new Set<string>();
+  private writeInProgress = false;
+  private writePending = false;
 
   constructor() {
     const dataDir = path.join(process.cwd(), 'data');
@@ -19,7 +23,7 @@ export class FirestoreService implements OnModuleInit {
     this.loadOrSeed();
   }
 
-  async onModuleInit() {
+  async onModuleInit(): Promise<void> {
     try {
       if (!admin.apps.length) {
         admin.initializeApp({
@@ -27,41 +31,88 @@ export class FirestoreService implements OnModuleInit {
         });
       }
       this.firestoreDb = admin.firestore();
-      // Non-blocking sync of collections to Cloud Firestore when available
       void this.syncToCloudFirestore();
-    } catch (err: any) {
-      console.warn('[FirestoreService] Initialized in local-mirror mode for project', this.projectId, err?.message);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn('[FirestoreService] Initialized in local-mirror mode for project', this.projectId, msg);
     }
   }
 
-  private loadOrSeed() {
+  onModuleDestroy(): void {
+    this.flushSync();
+  }
+
+  private loadOrSeed(): void {
     if (fs.existsSync(this.dataFile)) {
       try {
         const raw = fs.readFileSync(this.dataFile, 'utf8');
-        this.store = JSON.parse(raw);
+        this.store = JSON.parse(raw) as OmniStore;
         if (this.store && Array.isArray(this.store.workspaces) && this.store.workspaces.length > 0) {
           return;
         }
-      } catch (e) {
+      } catch (e: unknown) {
         console.warn('[FirestoreService] Failed to parse local store, re-seeding:', e);
       }
     }
     this.store = createInitialSeedStore();
-    this.persist();
+    this.flushSync();
   }
 
   getStore(): OmniStore {
     return this.store;
   }
 
-  persist(changedCollection?: keyof OmniStore) {
+  /**
+   * High-performance non-blocking debounced persistence.
+   * Coalesces rapid state mutations into a single background disk write & Firestore batch.
+   */
+  persist(changedCollection?: keyof OmniStore): void {
+    if (changedCollection) {
+      this.dirtyCollections.add(String(changedCollection));
+    }
+    if (this.flushTimer) return;
+    this.flushTimer = setTimeout(() => {
+      this.flushTimer = null;
+      void this.flushAsync();
+    }, 150);
+  }
+
+  private async flushAsync(): Promise<void> {
+    if (this.writeInProgress) {
+      this.writePending = true;
+      return;
+    }
+    this.writeInProgress = true;
+    try {
+      const payload = JSON.stringify(this.store, null, 2);
+      await fs.promises.writeFile(this.dataFile, payload, 'utf8');
+      if (this.firestoreDb && this.firestoreReady && this.dirtyCollections.size > 0) {
+        const cols = Array.from(this.dirtyCollections);
+        this.dirtyCollections.clear();
+        for (const col of cols) {
+          await this.pushCollectionToFirestore(col);
+        }
+      }
+    } catch (err: unknown) {
+      console.error('[FirestoreService] Async persist error:', err);
+    } finally {
+      this.writeInProgress = false;
+      if (this.writePending) {
+        this.writePending = false;
+        void this.flushAsync();
+      }
+    }
+  }
+
+  private flushSync(): void {
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
     try {
       fs.writeFileSync(this.dataFile, JSON.stringify(this.store, null, 2), 'utf8');
-      if (changedCollection && this.firestoreDb && this.firestoreReady) {
-        void this.pushCollectionToFirestore(String(changedCollection));
-      }
-    } catch (err) {
-      console.error('[FirestoreService] Persist error:', err);
+    } catch (err: unknown) {
+      console.error('[FirestoreService] Sync flush error:', err);
     }
   }
 
@@ -71,7 +122,7 @@ export class FirestoreService implements OnModuleInit {
     return this.store;
   }
 
-  private async syncToCloudFirestore() {
+  private async syncToCloudFirestore(): Promise<void> {
     if (!this.firestoreDb) return;
     try {
       await this.firestoreDb.collection('_meta').doc('app').set(
@@ -88,18 +139,19 @@ export class FirestoreService implements OnModuleInit {
       }
       console.log(`[FirestoreService] Cloud Firestore (${this.projectId}) connected & synced.`);
     } catch {
-      // Cloud Firestore API or ADC may still be propagating; local mirror guarantees 100% availability
       this.firestoreReady = false;
     }
   }
 
-  private async pushCollectionToFirestore(colName: string) {
+  private async pushCollectionToFirestore(colName: string): Promise<void> {
     if (!this.firestoreDb || !this.firestoreReady) return;
     try {
-      const items = (this.store as any)[colName];
+      const storeRecord = this.store as unknown as Record<string, unknown>;
+      const items = storeRecord[colName];
       if (!Array.isArray(items)) return;
       const batch = this.firestoreDb.batch();
-      for (const item of items.slice(0, 50)) {
+      for (const rawItem of items.slice(0, 50)) {
+        const item = rawItem as StoreEntity;
         if (item && item.id) {
           const ref = this.firestoreDb.collection(colName).doc(String(item.id));
           batch.set(ref, item, { merge: true });

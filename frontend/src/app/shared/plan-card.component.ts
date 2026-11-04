@@ -29,8 +29,8 @@ export interface Promotion {
   discountPercent?: number;
   discountVnd?: number;
   planCodes?: string[] | null;
-  startsAt?: any;
-  endsAt?: any;
+  startsAt?: string | number | Date | null;
+  endsAt?: string | number | Date | null;
 }
 
 export function runningPromo(list: Promotion[]): Promotion | null {
@@ -108,7 +108,7 @@ export class PlanCardComponent {
   readonly choose = output<BillingPlan>();
   readonly vnd = fmtVnd;
   readonly off = computed(() => promoOff(this.plan(), this.promo()));
-  featureVi(f: string) {
+  featureVi(f: string): string {
     return FEATURE_VI[f] ?? f;
   }
 }

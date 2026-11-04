@@ -1,6 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DynamicEntity } from '../../core/models';
 import { OmniApiService } from '../../core/omni-api.service';
 
 @Component({
@@ -242,13 +243,13 @@ import { OmniApiService } from '../../core/omni-api.service';
 export class BillingPage implements OnInit {
   private readonly api = inject(OmniApiService);
 
-  readonly license = signal<any | null>(null);
-  readonly plans = signal<any[]>([]);
-  readonly promotions = signal<any[]>([]);
-  readonly orders = signal<any[]>([]);
-  readonly devices = signal<any[]>([]);
-  readonly referral = signal<any | null>(null);
-  readonly activeQrOrder = signal<any | null>(null);
+  readonly license = signal<DynamicEntity | null>(null);
+  readonly plans = signal<DynamicEntity[]>([]);
+  readonly promotions = signal<DynamicEntity[]>([]);
+  readonly orders = signal<DynamicEntity[]>([]);
+  readonly devices = signal<DynamicEntity[]>([]);
+  readonly referral = signal<DynamicEntity | null>(null);
+  readonly activeQrOrder = signal<DynamicEntity | null>(null);
   readonly toastMsg = signal('');
 
   licenseKeyInput = '';
@@ -259,12 +260,12 @@ export class BillingPage implements OnInit {
 
   async loadAll() {
     const [lic, pl, pr, ord, dev, ref] = await Promise.all([
-      this.api.invoke<any>('license.state', {}),
-      this.api.invoke<any[]>('billing.plans', {}),
-      this.api.invoke<any[]>('billing.promotions', {}),
-      this.api.invoke<any[]>('billing.orders', {}),
-      this.api.invoke<any>('license.devices', {}),
-      this.api.invoke<any>('billing.referral', {}),
+      this.api.invoke<DynamicEntity>('license.state', {}),
+      this.api.invoke<DynamicEntity[]>('billing.plans', {}),
+      this.api.invoke<DynamicEntity[]>('billing.promotions', {}),
+      this.api.invoke<DynamicEntity[]>('billing.orders', {}),
+      this.api.invoke<DynamicEntity>('license.devices', {}),
+      this.api.invoke<DynamicEntity>('billing.referral', {}),
     ]);
     this.license.set(lic);
     this.plans.set(pl || []);
@@ -274,8 +275,8 @@ export class BillingPage implements OnInit {
     this.referral.set(ref);
   }
 
-  async createOrder(plan: any) {
-    const ord = await this.api.invoke<any>('billing.createOrder', {
+  async createOrder(plan: DynamicEntity) {
+    const ord = await this.api.invoke<DynamicEntity>('billing.createOrder', {
       planCode: plan.code,
       months: plan.periodMonths,
     });
@@ -285,14 +286,14 @@ export class BillingPage implements OnInit {
 
   async activateKey() {
     if (!this.licenseKeyInput.trim()) return;
-    const lic = await this.api.invoke<any>('license.activate', { key: this.licenseKeyInput.trim() });
+    const lic = await this.api.invoke<DynamicEntity>('license.activate', { key: this.licenseKeyInput.trim() });
     this.license.set(lic);
     this.licenseKeyInput = '';
     this.toastMsg.set('Đã kích hoạt bản quyền Omnira Studio Pro thành công!');
   }
 
   async removeDevice(id: string) {
-    const res = await this.api.invoke<any>('license.removeDevice', { id });
+    const res = await this.api.invoke<DynamicEntity>('license.removeDevice', { id });
     this.devices.set(res?.devices || []);
     this.toastMsg.set('Đã gỡ thiết bị khỏi danh sách kích hoạt.');
   }

@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { DynamicEntity } from '../../core/models';
 import { OmniApiService } from '../../core/omni-api.service';
 import { ShellStore } from '../../layout/shell.store';
 import { pickFiles } from '../../shared/file-pick';
 import { IconComponent } from '../../shared/icon.component';
 import { ModalComponent } from '../../shared/modal.component';
-import { PLATFORM_META, asList, errOf, fmtRelative, fmtTime, initials, toDate } from '../../shared/util';
+import { PLATFORM_META, asList, errOf, fmtRelative, fmtTime, initials, inputVal, toDate } from '../../shared/util';
 
 const SOURCE_LABEL: Record<string, string> = { dm: 'Tin nhắn', comment: 'Bình luận', mention: 'Nhắc tên' };
 const CONV_STATUS = [
@@ -19,13 +20,40 @@ const ACTIONS = [
   { v: 'hide_comment', l: 'Ẩn bình luận' },
 ];
 
+interface AiSettings {
+  mode?: string;
+  comments?: boolean;
+  messages?: boolean;
+  autoLike?: boolean;
+  tagLeads?: boolean;
+  minConfidence?: number;
+  minDelaySec?: number;
+  maxDelaySec?: number;
+  maxPerHour?: number;
+  enabled?: boolean;
+  autoSend?: boolean;
+}
+
+interface RuleDraft {
+  id?: string;
+  workspaceId?: string | null;
+  name: string;
+  keywords: string;
+  action: string;
+  template: string;
+  minDelaySec: number;
+  maxDelaySec: number;
+  channelId: string;
+  enabled: boolean;
+}
+
 @Component({
   selector: 'app-inbox-page',
   standalone: true,
   imports: [IconComponent, ModalComponent, FormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="inbox">
+    <div class="inbox" [class.has-sel]="!!selId()">
       <!-- ConversationList -->
       <section class="col list">
         <div class="p-3 flex flex-col gap-2">
@@ -75,6 +103,7 @@ const ACTIONS = [
       <section class="col thread">
         @if (conv(); as c) {
           <header class="th-head">
+            <button class="o-icon-btn mob-back" style="display: none" (click)="selId.set(null)" aria-label="Quay lại danh sách"><o-icon name="chevronleft" [size]="16" /></button>
             <div class="o-avatar">{{ ini(c.customerName) }}</div>
             <div class="min-w-0 flex-1">
               <div class="font-semibold truncate">{{ c.customerName }}</div>
@@ -178,12 +207,12 @@ const ACTIONS = [
                     <label class="flex items-center justify-between text-body-sm">Page tự thích bình luận <button class="o-switch" [class.on]="a.autoLike" (click)="setAi({ autoLike: !a.autoLike })"></button></label>
                     <label class="flex items-center justify-between text-body-sm">Gắn nhãn khách tiềm năng <button class="o-switch" [class.on]="a.tagLeads" (click)="setAi({ tagLeads: !a.tagLeads })"></button></label>
                     @if (a.mode === 'auto') {
-                      <label class="o-field"><span class="o-label">Độ chắc chắn tối thiểu: {{ pct(a.minConfidence) }}%</span><input class="o-range" type="range" min="0.5" max="1" step="0.05" [ngModel]="a.minConfidence" (change)="setAi({ minConfidence: +$any($event.target).value })" /></label>
+                      <label class="o-field"><span class="o-label">Độ chắc chắn tối thiểu: {{ pct(a.minConfidence) }}%</span><input class="o-range" type="range" min="0.5" max="1" step="0.05" [ngModel]="a.minConfidence" (change)="setAi({ minConfidence: +inputVal($event) })" /></label>
                     }
                     <div class="grid grid-cols-3 gap-2">
-                      <label class="o-field"><span class="o-label">Trễ min (s)</span><input class="o-input" type="number" min="0" max="600" [ngModel]="a.minDelaySec" (change)="setAi({ minDelaySec: +$any($event.target).value })" /></label>
-                      <label class="o-field"><span class="o-label">Trễ max (s)</span><input class="o-input" type="number" min="0" max="900" [ngModel]="a.maxDelaySec" (change)="setAi({ maxDelaySec: +$any($event.target).value })" /></label>
-                      <label class="o-field"><span class="o-label">Tối đa / giờ</span><input class="o-input" type="number" min="1" max="500" [ngModel]="a.maxPerHour" (change)="setAi({ maxPerHour: +$any($event.target).value })" /></label>
+                      <label class="o-field"><span class="o-label">Trễ min (s)</span><input class="o-input" type="number" min="0" max="600" [ngModel]="a.minDelaySec" (change)="setAi({ minDelaySec: +inputVal($event) })" /></label>
+                      <label class="o-field"><span class="o-label">Trễ max (s)</span><input class="o-input" type="number" min="0" max="900" [ngModel]="a.maxDelaySec" (change)="setAi({ maxDelaySec: +inputVal($event) })" /></label>
+                      <label class="o-field"><span class="o-label">Tối đa / giờ</span><input class="o-input" type="number" min="1" max="500" [ngModel]="a.maxPerHour" (change)="setAi({ maxPerHour: +inputVal($event) })" /></label>
                     </div>
                   </div>
                 }
@@ -258,7 +287,7 @@ const ACTIONS = [
     `:host { display: block; height: 100%; }
      .inbox { display: grid; grid-template-columns: 340px minmax(0, 1fr) 320px; height: 100%; min-height: 0; }
      @media (max-width: 1280px) { .inbox { grid-template-columns: 300px minmax(0, 1fr); } .side { display: none; } }
-     @media (max-width: 760px) { .inbox { grid-template-columns: 1fr; } .list { display: none; } }
+     @media (max-width: 760px) { .inbox { grid-template-columns: 1fr; } .inbox.has-sel .list { display: none; } .inbox:not(.has-sel) .thread { display: none; } .mob-back { display: inline-flex !important; } }
      .col { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
      .list { border-right: 1px solid rgb(var(--c-overlay) / 0.06); background: rgb(var(--c-surface-container-lowest) / 0.5); }
      .side { border-left: 1px solid rgb(var(--c-overlay) / 0.06); background: rgb(var(--c-surface-container-lowest) / 0.5); }
@@ -288,25 +317,25 @@ export class InboxPageComponent {
   readonly convStatus = CONV_STATUS;
   readonly actions = ACTIONS;
   readonly suggestedTags = ['Hỏi giá', 'Chốt đơn', 'VIP', 'Khiếu nại', 'Khách tiềm năng'];
-  readonly convs = signal<any[]>([]);
-  readonly msgs = signal<any[]>([]);
+  readonly convs = signal<DynamicEntity[]>([]);
+  readonly msgs = signal<DynamicEntity[]>([]);
   readonly selId = signal<string | null>(null);
   readonly platform = signal<string | null>(null);
   readonly unreadOnly = signal(false);
   readonly statusF = signal('');
   readonly q = signal('');
-  readonly stats = signal<any>(null);
-  readonly rules = signal<any[]>([]);
-  readonly quick = signal<any[]>([]);
-  readonly ai = signal<any>(null);
-  readonly worker = signal<any>(null);
+  readonly stats = signal<DynamicEntity | null>(null);
+  readonly rules = signal<DynamicEntity[]>([]);
+  readonly quick = signal<DynamicEntity[]>([]);
+  readonly ai = signal<AiSettings | null>(null);
+  readonly worker = signal<DynamicEntity | null>(null);
   readonly autoSync = signal(true);
-  readonly channels = signal<any[]>([]);
+  readonly channels = signal<DynamicEntity[]>([]);
   readonly side = signal<'meta' | 'settings'>('settings');
   readonly syncing = signal(false);
   readonly busy = signal(false);
   readonly suggesting = signal(false);
-  readonly suggestion = signal<any>(null);
+  readonly suggestion = signal<DynamicEntity | null>(null);
   readonly qrOpen = signal(false);
   readonly qrFilter = signal('');
   readonly editDraft = signal<string | null>(null);
@@ -315,11 +344,12 @@ export class InboxPageComponent {
   text = '';
   draftText = '';
   newTag = '';
-  rule: any = { name: '', keywords: '', action: 'reply_comment', template: '', minDelaySec: 15, maxDelaySec: 45, channelId: '', enabled: true };
+  rule: RuleDraft = { name: '', keywords: '', action: 'reply_comment', template: '', minDelaySec: 15, maxDelaySec: 45, channelId: '', enabled: true };
 
   readonly rel = fmtRelative;
   readonly time = fmtTime;
   readonly ini = initials;
+  readonly inputVal = inputVal;
 
   readonly conv = computed(() => this.convs().find((c) => c.id === this.selId()) ?? null);
   readonly shownConvs = computed(() => {
@@ -369,10 +399,10 @@ export class InboxPageComponent {
   channelName(id: string) {
     return this.channels().find((c) => c.id === id)?.name ?? '';
   }
-  attUrl(a: any) {
+  attUrl(a: DynamicEntity | string) {
     return typeof a === 'string' ? a : a?.url ?? a?.path ?? '';
   }
-  laterLabel(m: any) {
+  laterLabel(m: DynamicEntity) {
     const t = toDate(m.sendAfter);
     return t && t.getTime() > Date.now() + 1500 ? `Gửi lúc ${fmtTime(t)}` : 'Đang gửi';
   }
@@ -383,7 +413,7 @@ export class InboxPageComponent {
       if (!silent) this.api.toast('Không tải được hộp thư', errOf(r), 'error');
       return;
     }
-    this.convs.set(asList(r.data).map((x: any) => x.conversation ? { ...x.conversation, channelName: x.channelName } : x));
+    this.convs.set(asList(r.data).map((x: DynamicEntity) => x.conversation ? { ...x.conversation, channelName: x.channelName } : x));
   }
 
   async loadSide() {
@@ -392,24 +422,24 @@ export class InboxPageComponent {
       this.api.invokeRaw('inbox.stats', { workspaceId: ws }),
       this.api.invokeRaw('inbox.rules', { workspaceId: ws }),
       this.api.invokeRaw('inbox.quickReplies', { workspaceId: ws }),
-      this.api.invokeRaw('inbox.aiSettings'),
+      this.api.invokeRaw<AiSettings>('inbox.aiSettings'),
       this.api.invokeRaw('channels.list', { workspaceId: ws }),
-      this.api.invokeRaw<any>('inbox.worker'),
+      this.api.invokeRaw<DynamicEntity>('inbox.worker'),
     ]);
     this.stats.set(st.ok ? st.data : null);
     this.rules.set(asList(ru.ok ? ru.data : []));
     this.quick.set(asList(qr.ok ? qr.data : []));
-    const a: any = ai.ok ? ai.data ?? {} : {};
+    const a: AiSettings = ai.ok ? ai.data ?? {} : {};
     const mode = a.mode ?? (a.enabled === false ? 'off' : a.autoSend ? 'auto' : 'draft');
     this.ai.set({ comments: true, messages: true, minConfidence: 0.85, minDelaySec: 20, maxDelaySec: 90, maxPerHour: 60, autoLike: false, tagLeads: true, ...a, mode });
-    this.channels.set(asList(ch.ok ? ch.data : []).map((x: any) => x.channel ?? x));
+    this.channels.set(asList(ch.ok ? ch.data : []).map((x: DynamicEntity) => x.channel ?? x));
     if (wk.ok) {
       this.worker.set(wk.data);
       this.autoSync.set(wk.data?.autoSync ?? wk.data?.enabled ?? true);
     }
   }
 
-  async open(c: any) {
+  async open(c: DynamicEntity) {
     this.selId.set(c.id);
     this.side.set('meta');
     this.suggestion.set(null);
@@ -433,7 +463,7 @@ export class InboxPageComponent {
       return;
     }
     const prev = this.msgs().length;
-    this.msgs.set(asList(r.data).sort((a: any, b: any) => (toDate(a.createdAt)?.getTime() ?? 0) - (toDate(b.createdAt)?.getTime() ?? 0)));
+    this.msgs.set(asList(r.data).sort((a: DynamicEntity, b: DynamicEntity) => (toDate(a.createdAt)?.getTime() ?? 0) - (toDate(b.createdAt)?.getTime() ?? 0)));
     if (!silent || this.msgs().length !== prev) setTimeout(() => this.scroller()?.nativeElement.scrollTo({ top: 1e9 }), 0);
   }
 
@@ -452,7 +482,7 @@ export class InboxPageComponent {
     } else if (e.key === 'Escape') this.qrOpen.set(false);
   }
 
-  useQr(r: any) {
+  useQr(r: DynamicEntity) {
     const name = this.conv()?.customerName ?? '';
     this.text = String(r.body ?? '').replace(/\{\{\s*name\s*\}\}/g, name);
     this.qrOpen.set(false);
@@ -462,8 +492,8 @@ export class InboxPageComponent {
   async attach() {
     const files = await pickFiles({ accept: 'image/*', multiple: true, maxMb: 8 });
     if (!files.length) return;
-    const r = await this.api.invokeRaw<any>('inbox.pickAttachments', { images: true, multiple: true, files: files.map((f) => ({ name: f.name, dataUrl: f.dataUrl })) });
-    const paths: string[] = r.ok ? asList(r.data?.paths ?? r.data).filter((x: any) => typeof x === 'string') : [];
+    const r = await this.api.invokeRaw<DynamicEntity>('inbox.pickAttachments', { images: true, multiple: true, files: files.map((f) => ({ name: f.name, dataUrl: f.dataUrl })) });
+    const paths: string[] = r.ok ? asList<string>(r.data?.paths ?? r.data).filter((x) => typeof x === 'string') : [];
     if (!r.ok) this.api.toast('Không tải được tệp', errOf(r), 'error');
     this.attachments.update((l) => [...l, ...paths].slice(0, 5));
   }
@@ -490,14 +520,14 @@ export class InboxPageComponent {
     const c = this.conv();
     if (!c) return;
     this.suggesting.set(true);
-    const r = await this.api.invokeRaw<any>('inbox.suggestReply', { conversationId: c.id });
+    const r = await this.api.invokeRaw<DynamicEntity | string>('inbox.suggestReply', { conversationId: c.id });
     this.suggesting.set(false);
     if (!r.ok) return this.api.toast('AI chưa gợi ý được', errOf(r), 'error');
     const d = r.data;
-    this.suggestion.set(typeof d === 'string' ? { body: d } : { body: d?.body ?? d?.reply ?? d?.text ?? d?.suggestion, note: d?.note ?? d?.reason });
+    this.suggestion.set(typeof d === 'string' ? { body: d } : { body: String(d?.body ?? d?.reply ?? d?.text ?? d?.suggestion ?? ''), note: d?.note ? String(d.note) : d?.reason ? String(d.reason) : undefined });
   }
 
-  async approve(m: any) {
+  async approve(m: DynamicEntity) {
     this.busy.set(true);
     const body = this.editDraft() === m.id ? this.draftText.trim() : null;
     const r = await this.api.invokeRaw('inbox.approveDraft', { id: m.id, body });
@@ -508,39 +538,39 @@ export class InboxPageComponent {
     await this.loadMsgs(this.selId()!);
   }
 
-  async discard(m: any) {
+  async discard(m: DynamicEntity) {
     const r = await this.api.invokeRaw('inbox.discardDraft', { id: m.id });
     if (!r.ok) return this.api.toast('Không bỏ được', errOf(r), 'error');
     this.msgs.update((l) => l.filter((x) => x.id !== m.id));
   }
 
-  async resend(m: any) {
+  async resend(m: DynamicEntity) {
     const r = await this.api.invokeRaw('inbox.resend', { id: m.id });
     if (!r.ok) return this.api.toast('Không gửi lại được', errOf(r), 'error');
     await this.loadMsgs(this.selId()!);
   }
 
-  private async updateConv(c: any, patch: { tags?: string[]; status?: string }) {
+  private async updateConv(c: DynamicEntity, patch: { tags?: string[]; status?: string }) {
     const r = await this.api.invokeRaw('inbox.update', { conversationId: c.id, ...patch });
     if (!r.ok) return this.api.toast('Không cập nhật được', errOf(r), 'error');
     this.convs.update((l) => l.map((x) => (x.id === c.id ? { ...x, ...patch } : x)));
   }
-  setStatus(c: any, status: string) {
+  setStatus(c: DynamicEntity, status: string) {
     void this.updateConv(c, { status });
   }
-  addTag(c: any) {
+  addTag(c: DynamicEntity) {
     const t = this.newTag.trim();
     this.newTag = '';
     if (!t || (c.tags ?? []).includes(t)) return;
     void this.updateConv(c, { tags: [...(c.tags ?? []), t].slice(0, 12) });
   }
-  removeTag(c: any, t: string) {
+  removeTag(c: DynamicEntity, t: string) {
     void this.updateConv(c, { tags: (c.tags ?? []).filter((x: string) => x !== t) });
   }
 
   async sync() {
     this.syncing.set(true);
-    const r = await this.api.invokeRaw<any>('inbox.sync', {});
+    const r = await this.api.invokeRaw<DynamicEntity>('inbox.sync', {});
     this.syncing.set(false);
     if (!r.ok) return this.api.toast('Đồng bộ thất bại', errOf(r), 'error');
     this.api.toast('Đã đồng bộ hộp thư', r.data?.newMessages != null ? `${r.data.newMessages} tin mới` : undefined, 'success');
@@ -555,7 +585,7 @@ export class InboxPageComponent {
     this.autoSync.set(next);
   }
 
-  async setAi(patch: any) {
+  async setAi(patch: Partial<AiSettings>) {
     const prev = this.ai();
     this.ai.set({ ...prev, ...patch });
     const r = await this.api.invokeRaw('inbox.setAiSettings', patch);
@@ -565,9 +595,20 @@ export class InboxPageComponent {
     }
   }
 
-  openRule(r: any) {
+  openRule(r: DynamicEntity | null) {
     this.rule = r
-      ? { ...r, keywords: (r.keywords ?? []).join(', '), template: r.template ?? '', channelId: r.channelId ?? '' }
+      ? {
+          id: r.id,
+          workspaceId: r.workspaceId,
+          name: r.name ?? '',
+          keywords: (r.keywords ?? []).join(', '),
+          action: r.action ?? 'reply_comment',
+          template: r.template ?? '',
+          minDelaySec: r.minDelaySec ?? 15,
+          maxDelaySec: r.maxDelaySec ?? 45,
+          channelId: r.channelId ?? '',
+          enabled: r.enabled ?? true,
+        }
       : { id: undefined, name: '', keywords: '', action: 'reply_comment', template: 'Dạ {{name}} kiểm tra tin nhắn chờ giúp em nha, em vừa gửi chi tiết rồi ạ ❤️', minDelaySec: 15, maxDelaySec: 45, channelId: '', enabled: true };
     this.ruleOpen.set(true);
   }
@@ -595,13 +636,13 @@ export class InboxPageComponent {
     void this.loadSide();
   }
 
-  async toggleRule(r: any) {
+  async toggleRule(r: DynamicEntity) {
     const res = await this.api.invokeRaw('inbox.toggleRule', { id: r.id, enabled: !r.enabled });
     if (!res.ok) return this.api.toast('Không đổi được', errOf(res), 'error');
     this.rules.update((l) => l.map((x) => (x.id === r.id ? { ...x, enabled: !r.enabled } : x)));
   }
 
-  async deleteRule(r: any) {
+  async deleteRule(r: DynamicEntity) {
     if (!confirm(`Xóa luật “${r.name}”?`)) return;
     const res = await this.api.invokeRaw('inbox.deleteRule', { id: r.id });
     if (!res.ok) return this.api.toast('Không xóa được', errOf(res), 'error');

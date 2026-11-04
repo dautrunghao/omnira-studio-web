@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { DynamicEntity } from '../../core/models';
 import { OmniApiService } from '../../core/omni-api.service';
 import { ShellStore } from '../../layout/shell.store';
 import { pickFiles } from '../../shared/file-pick';
@@ -56,7 +57,7 @@ const ASPECTS = ['9:16', '1:1', '4:5', '16:9'];
         @for (s of statuses; track s.v) {
           <button class="o-chip" [class.active]="status().includes(s.v)" (click)="toggleStatus(s.v)">{{ s.l }} <span class="o-badge mono">{{ countStatus(s.v) }}</span></button>
         }
-        <div class="relative ml-auto" style="width: 280px">
+        <div class="relative ml-auto" style="width: min(280px, 100%)">
           <o-icon name="search" [size]="14" class="o-muted" style="position: absolute; left: 10px; top: 11px" />
           <input class="o-input" style="padding-left: 30px" placeholder="Tìm tiêu đề, caption, hashtag…" [ngModel]="search()" (ngModelChange)="onSearch($event)" />
         </div>
@@ -317,7 +318,7 @@ const ASPECTS = ['9:16', '1:1', '4:5', '16:9'];
      .media { position: relative; width: 72px; height: 72px; border-radius: 10px; overflow: hidden; background: rgb(var(--c-surface-container-lowest)); display: flex; align-items: center; justify-content: center; }
      .media img { width: 100%; height: 100%; object-fit: cover; }
      .media .rm { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; background: rgb(0 0 0 / 0.6); color: #fff; }
-     .hook-top { display: flex; gap: 16px; align-items: flex-start; }
+     .hook-top { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
      .score { width: 92px; height: 92px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 4px solid rgb(var(--c-outline)); flex-shrink: 0; }
      .score b { font-size: 1.75rem; line-height: 1; } .score span { font-size: .6875rem; color: rgb(var(--c-on-surface-variant)); }
      .score.tertiary { border-color: rgb(var(--c-success)); } .score.warning { border-color: rgb(var(--c-warning)); } .score.error { border-color: rgb(var(--c-danger)); }`,
@@ -332,8 +333,8 @@ export class ContentPageComponent {
   readonly statuses = STATUS;
   readonly kinds = KINDS;
   readonly aspects = ASPECTS;
-  readonly items = signal<any[]>([]);
-  readonly stats = signal<any>(null);
+  readonly items = signal<DynamicEntity[]>([]);
+  readonly stats = signal<DynamicEntity | null>(null);
   readonly loading = signal(true);
   readonly status = signal<string[]>([]);
   readonly kind = signal('');
@@ -342,21 +343,21 @@ export class ContentPageComponent {
   readonly checked = signal<Set<string>>(new Set());
   readonly busy = signal(false);
   readonly editorOpen = signal(false);
-  readonly hookFor = signal<any>(null);
-  readonly hook = signal<any>(null);
+  readonly hookFor = signal<DynamicEntity | null>(null);
+  readonly hook = signal<DynamicEntity | null>(null);
   readonly hookPlatform = signal<string | null>(null);
   readonly scoring = signal(false);
-  readonly variantsFor = signal<any>(null);
-  readonly variants = signal<any[]>([]);
-  readonly schedFor = signal<any>(null);
-  readonly channels = signal<any[]>([]);
+  readonly variantsFor = signal<DynamicEntity | null>(null);
+  readonly variants = signal<DynamicEntity[]>([]);
+  readonly schedFor = signal<DynamicEntity | null>(null);
+  readonly channels = signal<DynamicEntity[]>([]);
   readonly spinOpen = signal(false);
   readonly autoOpen = signal(false);
   spinCount = 3;
   spacing = 4;
-  ed: any = this.blank();
+  ed = this.blank();
   sched = { channels: new Set<string>(), at: toLocalInput(Date.now() + 3600000) };
-  private searchTimer: any;
+  private searchTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly compact = fmtCompact;
   readonly rel = fmtRelative;
@@ -386,7 +387,7 @@ export class ContentPageComponent {
   private pendingOpen: string | null = null;
 
   private blank() {
-    return { id: null, kind: 'reel', title: '', caption: '', hashtags: '', firstComment: '', aspect: '9:16', status: 'draft', workspaceId: this.api.activeWorkspaceId(), mediaPaths: [] as string[], updatedAt: null };
+    return { id: null as string | null, kind: 'reel', title: '', caption: '', hashtags: '', firstComment: '', aspect: '9:16', status: 'draft', workspaceId: this.api.activeWorkspaceId(), mediaPaths: [] as string[], updatedAt: null as number | string | null };
   }
 
   emptySet() {
@@ -417,21 +418,21 @@ export class ContentPageComponent {
   byKind(k: string) {
     return this.stats()?.byKind?.[k] ?? this.items().filter((c) => c.kind === k).length;
   }
-  thumb(c: any): string | null {
+  thumb(c: DynamicEntity): string | null {
     const t = c.thumbnailPath ?? c.thumbnailUrl ?? (c.mediaPaths ?? []).find((m: string) => !this.isVideo(m));
     return t && /^(https?:|data:|\/)/.test(t) ? t : null;
   }
   isVideo(p: string) {
     return /\.(mp4|mov|webm|mkv|m4v)(\?|$)/i.test(p) || p.startsWith('data:video');
   }
-  healthIssues(h: any): any[] {
+  healthIssues(h: DynamicEntity): DynamicEntity[] {
     const hh = h.health;
     if (!hh) return [];
-    return [...asList(hh.policy), ...asList(hh.issues ?? hh)].slice(0, 8);
+    return [...asList<DynamicEntity>(hh.policy), ...asList<DynamicEntity>(hh.issues ?? hh)].slice(0, 8);
   }
 
   onSearch(v: string) {
-    clearTimeout(this.searchTimer);
+    if (this.searchTimer) clearTimeout(this.searchTimer);
     this.searchTimer = setTimeout(() => this.search.set(v), 300);
   }
   toggleStatus(s: string) {
@@ -448,10 +449,10 @@ export class ContentPageComponent {
 
   async load() {
     const workspaceId = this.api.activeWorkspaceId();
-    const [l, s] = await Promise.all([this.api.invokeRaw('content.list', { workspaceId, search: this.search() || undefined }), this.api.invokeRaw('content.stats', { workspaceId })]);
+    const [l, s] = await Promise.all([this.api.invokeRaw<DynamicEntity[]>('content.list', { workspaceId, search: this.search() || undefined }), this.api.invokeRaw<DynamicEntity>('content.stats', { workspaceId })]);
     this.loading.set(false);
     if (!l.ok) return this.api.toast('Không tải được kho nội dung', errOf(l), 'error');
-    this.items.set(asList(l.data));
+    this.items.set(asList<DynamicEntity>(l.data));
     this.stats.set(s.ok ? s.data : null);
     if (this.pendingOpen) {
       const c = this.items().find((x) => x.id === this.pendingOpen);
@@ -460,9 +461,22 @@ export class ContentPageComponent {
     }
   }
 
-  openEditor(c: any) {
+  openEditor(c: DynamicEntity | null) {
     this.ed = c
-      ? { ...this.blank(), ...c, hashtags: (c.hashtags ?? []).join(' '), caption: c.caption ?? '', firstComment: c.firstComment ?? '', mediaPaths: [...(c.mediaPaths ?? [])], status: c.status === 'draft' || c.status === 'ready' ? c.status : 'ready' }
+      ? {
+          ...this.blank(),
+          id: c.id ?? null,
+          kind: c.kind ?? 'reel',
+          title: c.title ?? '',
+          aspect: c.aspect ?? '9:16',
+          workspaceId: c.workspaceId ?? this.api.activeWorkspaceId(),
+          updatedAt: c.updatedAt ?? null,
+          hashtags: (c.hashtags ?? []).join(' '),
+          caption: c.caption ?? '',
+          firstComment: c.firstComment ?? '',
+          mediaPaths: [...(c.mediaPaths ?? [])],
+          status: c.status === 'draft' || c.status === 'ready' ? c.status : 'ready',
+        }
       : this.blank();
     this.editorOpen.set(true);
   }
@@ -470,9 +484,9 @@ export class ContentPageComponent {
   async addMedia() {
     const files = await pickFiles({ accept: 'image/*,video/*', multiple: true, maxMb: 200 });
     if (!files.length) return;
-    const r = await this.api.invokeRaw<any>('system.pickMedia', { files: files.map((f) => ({ name: f.name, dataUrl: f.dataUrl })) });
+    const r = await this.api.invokeRaw<DynamicEntity>('system.pickMedia', { files: files.map((f) => ({ name: f.name, dataUrl: f.dataUrl })) });
     if (!r.ok) return this.api.toast('Không tải được tệp lên', errOf(r), 'error');
-    const paths: string[] = asList(r.data?.paths ?? r.data).filter((x: any) => typeof x === 'string');
+    const paths: string[] = asList<unknown>(r.data?.paths ?? r.data).filter((x): x is string => typeof x === 'string');
     this.ed.mediaPaths = [...this.ed.mediaPaths, ...(paths.length ? paths : files.map((f) => f.dataUrl))].slice(0, 10);
   }
 
@@ -489,7 +503,7 @@ export class ContentPageComponent {
       firstComment: this.ed.firstComment || null,
       mediaPaths: this.ed.mediaPaths,
     };
-    const r = this.ed.id ? await this.api.invokeRaw('content.update', { id: this.ed.id, patch: body }) : await this.api.invokeRaw<any>('content.create', body);
+    const r = this.ed.id ? await this.api.invokeRaw<DynamicEntity>('content.update', { id: this.ed.id, patch: body }) : await this.api.invokeRaw<DynamicEntity>('content.create', body);
     this.busy.set(false);
     if (!r.ok) return this.api.toast('Không lưu được nội dung', errOf(r), 'error');
     this.editorOpen.set(false);
@@ -498,7 +512,7 @@ export class ContentPageComponent {
     await this.load();
   }
 
-  async del(c: any) {
+  async del(c: DynamicEntity) {
     if (!confirm(`Xóa “${c.title}” cùng lịch đăng liên quan?`)) return;
     const r = await this.api.invokeRaw('content.delete', { id: c.id });
     if (!r.ok) return this.api.toast('Không xóa được', errOf(r), 'error');
@@ -528,27 +542,28 @@ export class ContentPageComponent {
 
   async spin(ids: string[], single: boolean) {
     this.busy.set(true);
-    const r = await this.api.invokeRaw<any>('content.spin', { ids, count: this.spinCount });
+    const r = await this.api.invokeRaw<DynamicEntity>('content.spin', { ids, count: this.spinCount });
     this.busy.set(false);
     this.spinOpen.set(false);
     if (!r.ok) return this.api.toast('AI Spin thất bại', errOf(r), 'error');
     const failed = asList(r.data?.failed);
     this.api.toast('Đã sinh biến thể', `${r.data?.done ?? ids.length - failed.length}/${ids.length} nội dung${failed.length ? ` · lỗi ${failed.length}` : ''}`, failed.length ? 'warn' : 'success');
-    if (single && this.variantsFor()) await this.loadVariants(this.variantsFor().id);
+    const vfId = this.variantsFor()?.id;
+    if (single && vfId) await this.loadVariants(vfId);
     await this.load();
   }
 
   async hashtags() {
     const ids = [...this.checked()];
     this.busy.set(true);
-    const r = await this.api.invokeRaw<any>('content.hashtags', { ids });
+    const r = await this.api.invokeRaw<DynamicEntity>('content.hashtags', { ids });
     this.busy.set(false);
     if (!r.ok) return this.api.toast('Không gợi ý được hashtag', errOf(r), 'error');
     this.api.toast('Đã cập nhật hashtag AI', `${r.data?.done ?? ids.length} nội dung`, 'success');
     await this.load();
   }
 
-  async openHook(c: any) {
+  async openHook(c: DynamicEntity) {
     this.hookFor.set(c);
     this.hook.set(c.hookScore?.score != null ? c.hookScore : null);
     this.hookPlatform.set(null);
@@ -559,16 +574,17 @@ export class ContentPageComponent {
     const c = this.hookFor();
     if (!c?.id) return;
     this.scoring.set(true);
-    const r = await this.api.invokeRaw<any>('content.hookScore', { id: c.id, platform: this.hookPlatform() ?? undefined, force });
+    const r = await this.api.invokeRaw<DynamicEntity>('content.hookScore', { id: c.id, platform: this.hookPlatform() ?? undefined, force });
     this.scoring.set(false);
     if (!r.ok) return this.api.toast('Không chấm được Hook', errOf(r), 'error');
-    const s = r.data?.score && typeof r.data.score === 'object' ? r.data.score : r.data;
+    const s = (r.data?.score && typeof r.data.score === 'object' ? r.data.score : r.data) as number & DynamicEntity;
     this.hook.set(s);
     this.items.update((l) => l.map((x) => (x.id === c.id ? { ...x, hookScore: s } : x)));
   }
 
   async useHook(s: string) {
     const c = this.hookFor();
+    if (!c) return;
     const caption = c.caption ? `${s}\n\n${c.caption.split('\n').slice(1).join('\n')}`.trim() : s;
     const r = await this.api.invokeRaw('content.update', { id: c.id, patch: { caption } });
     if (!r.ok) return this.api.toast('Không cập nhật được', errOf(r), 'error');
@@ -577,31 +593,31 @@ export class ContentPageComponent {
     await this.load();
   }
 
-  async openVariants(c: any) {
+  async openVariants(c: DynamicEntity) {
     this.variantsFor.set(c);
     await this.loadVariants(c.id);
   }
   private async loadVariants(id: string) {
-    const r = await this.api.invokeRaw('content.variants', { id });
-    this.variants.set(asList(r.ok ? r.data : []));
+    const r = await this.api.invokeRaw<DynamicEntity[]>('content.variants', { id });
+    this.variants.set(asList<DynamicEntity>(r.ok ? r.data : []));
   }
-  async applyVariant(v: any) {
+  async applyVariant(v: DynamicEntity) {
     const r = await this.api.invokeRaw('content.applyVariant', { id: v.id });
     if (!r.ok) return this.api.toast('Không áp dụng được', errOf(r), 'error');
     this.api.toast('Đã dùng biến thể làm caption chính', undefined, 'success');
     await this.load();
   }
-  async deleteVariant(v: any) {
+  async deleteVariant(v: DynamicEntity) {
     const r = await this.api.invokeRaw('content.deleteVariant', { id: v.id });
     if (!r.ok) return this.api.toast('Không xóa được', errOf(r), 'error');
     this.variants.update((l) => l.filter((x) => x.id !== v.id));
   }
 
-  async openSchedule(c: any) {
+  async openSchedule(c: DynamicEntity) {
     this.schedFor.set(c);
     this.sched = { channels: new Set(), at: toLocalInput(Date.now() + 3600000) };
-    const r = await this.api.invokeRaw('channels.list', { workspaceId: c.workspaceId ?? this.api.activeWorkspaceId() });
-    this.channels.set(asList(r.ok ? r.data : []).map((x: any) => x.channel ?? x));
+    const r = await this.api.invokeRaw<DynamicEntity[]>('channels.list', { workspaceId: c.workspaceId ?? this.api.activeWorkspaceId() });
+    this.channels.set(asList<DynamicEntity>(r.ok ? r.data : []).map((x) => x.channel ?? x));
   }
   toggleSchedChannel(id: string) {
     this.sched.channels.has(id) ? this.sched.channels.delete(id) : this.sched.channels.add(id);
@@ -623,12 +639,13 @@ export class ContentPageComponent {
   }
   async doSchedule() {
     const c = this.schedFor();
+    if (!c) return;
     const at = new Date(this.sched.at).getTime();
     if (!at || at < Date.now()) return this.api.toast('Chọn thời gian trong tương lai', undefined, 'warn');
     this.busy.set(true);
     let ok = 0;
     for (const channelId of this.sched.channels) {
-      const r = await this.api.invokeRaw<any>('posts.schedule', { contentItemId: c.id, channelId, scheduledAt: at });
+      const r = await this.api.invokeRaw<DynamicEntity>('posts.schedule', { contentItemId: c.id, channelId, scheduledAt: at });
       if (r.ok) ok++;
       else this.api.toast('Không lên lịch được', errOf(r), 'error');
     }
@@ -644,7 +661,7 @@ export class ContentPageComponent {
   async autoSchedule() {
     const ids = [...this.checked()];
     this.busy.set(true);
-    const r = await this.api.invokeRaw<any>('posts.autoSchedule', { contentIds: ids, spacingHours: +this.spacing });
+    const r = await this.api.invokeRaw<DynamicEntity>('posts.autoSchedule', { contentIds: ids, spacingHours: +this.spacing });
     this.busy.set(false);
     if (!r.ok) return this.api.toast('Không tự xếp lịch được', errOf(r), 'error');
     this.autoOpen.set(false);

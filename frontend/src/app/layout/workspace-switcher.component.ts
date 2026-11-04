@@ -9,22 +9,22 @@ import { ShellStore } from './shell.store';
   standalone: true,
   imports: [IconComponent, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'relative block' },
+  host: { class: 'relative block min-w-0' },
   template: `
     <button type="button" class="ws-btn" aria-haspopup="listbox" [attr.aria-expanded]="open()" (click)="open.set(!open())">
       @if (shell.activeWorkspace(); as w) {
-        <span class="o-swatch" [style.background]="w.color || 'rgb(var(--c-primary))'"></span>
+        <span class="o-swatch shrink-0" [style.background]="w.color || 'rgb(var(--c-primary))'"></span>
       } @else {
-        <o-icon name="layers" [size]="15" class="o-secondary" />
+        <o-icon name="layers" [size]="15" class="o-secondary shrink-0" />
       }
-      <span class="truncate" style="max-width: 220px">
+      <span class="ws-label truncate">
         {{ shell.activeWorkspace()?.name ?? 'Tất cả không gian' }}
-        <span class="o-muted">({{ shell.activeWorkspace()?.channelCount ?? shell.totalChannels() }} kênh)</span>
+        <span class="o-muted ws-cnt">({{ shell.activeWorkspace()?.channelCount ?? shell.totalChannels() }} kênh)</span>
       </span>
-      <o-icon name="chevrondown" [size]="14" class="o-muted" />
+      <o-icon name="chevrondown" [size]="14" class="o-muted shrink-0" />
     </button>
     @if (open()) {
-      <div class="o-pop" style="left: 0; top: 36px; width: 300px" role="listbox">
+      <div class="o-pop ws-pop" role="listbox">
         <button class="o-pop-item" [class.active]="!api.activeWorkspaceId()" (click)="choose(null)">
           <o-icon name="layers" [size]="15" class="o-secondary" />
           <span class="flex-1 truncate">Tất cả không gian</span>
@@ -47,28 +47,34 @@ import { ShellStore } from './shell.store';
     }
   `,
   styles: [
-    `.ws-btn { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-radius: 8px; border: 0; background: rgb(var(--c-surface-container-low)); color: rgb(var(--c-on-surface)); font-size: .75rem; font-weight: 500; cursor: pointer; }
-     .ws-btn:hover { background: rgb(var(--c-surface-container-high)); }`,
+    `.ws-btn { display: flex; align-items: center; gap: 6px; height: 30px; max-width: 100%; padding: 0 9px; border-radius: 8px; border: 0; background: rgb(var(--c-surface-container-low)); color: rgb(var(--c-on-surface)); font-size: .75rem; font-weight: 500; cursor: pointer; min-width: 0; }
+     .ws-btn:hover { background: rgb(var(--c-surface-container-high)); }
+     .ws-label { max-width: clamp(96px, 32vw, 220px); min-width: 0; }
+     .ws-pop { left: 0; top: 36px; width: min(300px, calc(100vw - 24px)); }
+     @media (max-width: 480px) {
+       .ws-cnt { display: none; }
+       .ws-label { max-width: 36vw; }
+     }`,
   ],
 })
 export class WorkspaceSwitcherComponent {
   readonly api = inject(OmniApiService);
   readonly shell = inject(ShellStore);
-  private readonly el = inject(ElementRef);
+  private readonly el = inject(ElementRef<HTMLElement>);
   readonly open = signal(false);
 
-  choose(id: string | null) {
+  choose(id: string | null): void {
     this.api.setWorkspaceId(id);
     this.open.set(false);
     this.shell.bump('workspace');
   }
 
   @HostListener('document:mousedown', ['$event'])
-  onDoc(e: MouseEvent) {
-    if (this.open() && !this.el.nativeElement.contains(e.target)) this.open.set(false);
+  onDoc(e: MouseEvent): void {
+    if (this.open() && !this.el.nativeElement.contains(e.target as Node)) this.open.set(false);
   }
   @HostListener('document:keydown.escape')
-  onEsc() {
+  onEsc(): void {
     this.open.set(false);
   }
 }

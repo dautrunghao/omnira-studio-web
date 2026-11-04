@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { DynamicEntity } from '../core/models';
 import { OmniApiService } from '../core/omni-api.service';
 import { IconComponent } from '../shared/icon.component';
 import { ModalComponent } from '../shared/modal.component';
@@ -14,13 +15,17 @@ import { ShellStore } from './shell.store';
   template: `
     @if (shell.quota(); as q) {
       @if (q.limit !== null && q.limit !== undefined) {
-        <div class="o-banner" [class.warning]="!!q.blocked">
-          <o-icon name="radio" [size]="15" [class.o-warning]="q.blocked || q.used >= q.limit" [class.o-secondary]="!q.blocked && q.used < q.limit" />
-          <span>Đang dùng <b>{{ q.used }}</b> / {{ q.limit }} kênh của gói
-            @if (q.blocked) { · {{ q.blocked }} kênh ngoài hạn mức (tạm dừng đăng bài) } @else if (q.used >= q.limit) { · đã đủ hạn mức }
-          </span>
-          <div class="o-progress" style="width: 120px" [class.warning]="q.used >= q.limit"><div [style.width.%]="Math.min(100, (q.used / (q.limit || 1)) * 100)"></div></div>
-          <button class="o-btn o-btn-sm o-btn-subtle" style="margin-left: auto" (click)="openPicker()">Chọn kênh dùng</button>
+        <div class="o-banner flex-wrap" [class.warning]="!!q.blocked">
+          <div class="flex items-center gap-2 min-w-0">
+            <o-icon name="radio" [size]="15" [class.o-warning]="q.blocked || q.used >= q.limit" [class.o-secondary]="!q.blocked && q.used < q.limit" />
+            <span>Đang dùng <b>{{ q.used }}</b> / {{ q.limit }} kênh của gói
+              @if (q.blocked) { · {{ q.blocked }} kênh ngoài hạn mức (tạm dừng đăng bài) } @else if (q.used >= q.limit) { · đã đủ hạn mức }
+            </span>
+          </div>
+          <div class="flex items-center gap-3 ml-auto">
+            <div class="o-progress" style="width: 100px" [class.warning]="q.used >= q.limit"><div [style.width.%]="Math.min(100, (q.used / (q.limit || 1)) * 100)"></div></div>
+            <button class="o-btn o-btn-sm o-btn-subtle" (click)="openPicker()">Chọn kênh dùng</button>
+          </div>
         </div>
       }
     }
@@ -53,39 +58,40 @@ export class QuotaBarComponent {
   readonly Set = Set;
   readonly pick = signal(false);
   readonly busy = signal(false);
-  readonly channels = signal<any[]>([]);
+  readonly channels = signal<DynamicEntity[]>([]);
   readonly selected = signal<Set<string>>(new Set());
 
   constructor() {
     void this.shell.loadQuota();
   }
 
-  meta(p: string) {
-    return PLATFORM_META[p] ?? { short: p?.slice(0, 2).toUpperCase() };
+  meta(p?: string) {
+    const key = p ?? '';
+    return PLATFORM_META[key] ?? { short: key.slice(0, 2).toUpperCase() };
   }
 
-  async openPicker() {
+  async openPicker(): Promise<void> {
     this.pick.set(true);
     const r = await this.api.invokeRaw('channels.list', {});
-    const list = asList(r.ok ? r.data : []).map((x: any) => x.channel ?? x);
+    const list = asList<DynamicEntity>(r.ok ? r.data : []).map((x) => x.channel ?? x);
     this.channels.set(list);
-    this.selected.set(new Set(list.filter((c: any) => !c.quotaBlocked).map((c: any) => c.id)));
+    this.selected.set(new Set(list.filter((c) => !c.quotaBlocked).map((c) => c.id)));
   }
 
-  clearSel() {
+  clearSel(): void {
     this.selected.set(new Set());
   }
 
-  toggle(id: string) {
+  toggle(id: string): void {
     const s = new Set(this.selected());
     s.has(id) ? s.delete(id) : s.add(id);
     this.selected.set(s);
   }
 
-  async save() {
+  async save(): Promise<void> {
     this.busy.set(true);
     try {
-      const q = await this.api.invoke('channels.setQuota', { activeIds: [...this.selected()] });
+      const q = await this.api.invoke<{ used: number; limit: number | null; blocked?: number }>('channels.setQuota', { activeIds: [...this.selected()] });
       if (q) this.shell.quota.set(q);
       else await this.shell.loadQuota();
       this.shell.bump('channels', 'accounts');

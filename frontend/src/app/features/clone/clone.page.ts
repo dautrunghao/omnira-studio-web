@@ -2,6 +2,7 @@ import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { DynamicEntity } from '../../core/models';
 import { OmniApiService } from '../../core/omni-api.service';
 
 @Component({
@@ -241,7 +242,7 @@ export class ClonePage implements OnInit {
   private readonly api = inject(OmniApiService);
   private readonly router = inject(Router);
 
-  readonly jobs = signal<any[]>([]);
+  readonly jobs = signal<DynamicEntity[]>([]);
   readonly selectedId = signal<string | null>(null);
   readonly starting = signal(false);
   readonly converting = signal(false);
@@ -261,7 +262,7 @@ export class ClonePage implements OnInit {
   }
 
   async loadJobs() {
-    const list = await this.api.invoke<any[]>('clone.list', {});
+    const list = await this.api.invoke<DynamicEntity[]>('clone.list', {});
     this.jobs.set(list || []);
     if (!this.selectedId() && list?.length) {
       this.selectedId.set(list[0].id);
@@ -271,7 +272,7 @@ export class ClonePage implements OnInit {
   async startSampleUpload() {
     this.starting.set(true);
     try {
-      const job = await this.api.invoke<any>('clone.start', {
+      const job = await this.api.invoke<DynamicEntity>('clone.start', {
         sourceName: `tiktok_viral_sample_${Date.now().toString().slice(-4)}.mp4`,
       });
       await this.loadJobs();
@@ -285,7 +286,7 @@ export class ClonePage implements OnInit {
     if (!this.sourceUrl.trim()) return;
     this.starting.set(true);
     try {
-      const job = await this.api.invoke<any>('clone.start', {
+      const job = await this.api.invoke<DynamicEntity>('clone.start', {
         url: this.sourceUrl.trim(),
         sourceName: this.sourceUrl.trim(),
       });
@@ -308,7 +309,7 @@ export class ClonePage implements OnInit {
     if (!job) return;
     this.converting.set(true);
     try {
-      const res = await this.api.invoke<any>('clone.toFilm', {
+      const res = await this.api.invoke<DynamicEntity>('clone.toFilm', {
         id: job.id,
         ...this.cloneForm,
       });

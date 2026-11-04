@@ -2,49 +2,342 @@ import * as crypto from 'node:crypto';
 
 export const newId = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
 
+export interface StoreEntity {
+  id?: string;
+  uid?: string;
+  workspaceId?: string | null;
+  channelId?: string | null;
+  accountId?: string;
+  contentItemId?: string | null;
+  projectId?: string | null;
+  seriesId?: string | null;
+  filmId?: string | null;
+  assetId?: string;
+  jobId?: string;
+  messageId?: string;
+  conversationId?: string;
+  proxyId?: string | null;
+  profileId?: string | null;
+  browserProfileId?: string | null;
+  characterId?: string;
+  episodeId?: string | null;
+  sceneId?: string;
+  shotId?: string;
+  takeId?: string;
+  ideaId?: string | null;
+  variantId?: string;
+  resultId?: string;
+  ruleId?: string;
+  ticketId?: string;
+  orderId?: string;
+  externalPostId?: string | null;
+  code?: string;
+  key?: string;
+  email?: string;
+  password?: string;
+  newPassword?: string;
+  currentPassword?: string;
+  passwordHash?: string;
+  name?: string;
+  displayName?: string;
+  sourceName?: string;
+  customerName?: string;
+  productName?: string;
+  title?: string;
+  subtitle?: string;
+  label?: string;
+  description?: string;
+  synopsis?: string;
+  logline?: string;
+  brief?: string;
+  topic?: string;
+  idea?: string;
+  caption?: string;
+  body?: string;
+  text?: string;
+  message?: string;
+  prompt?: string;
+  promptEn?: string;
+  mediaPrompt?: string;
+  videoPrompt?: string;
+  stylePrompt?: string;
+  voiceover?: string;
+  dialogue?: string;
+  speaker?: string;
+  hook?: string;
+  hookCritique?: string;
+  critique?: string;
+  note?: string;
+  aiNote?: string;
+  notes?: string | string[] | null;
+  niche?: string;
+  nicheTag?: string;
+  brandVoice?: string;
+  genre?: string;
+  visualStyle?: string;
+  visualStyleEn?: string;
+  stylePreset?: string;
+  subtitleStyle?: string;
+  bgmTrack?: string;
+  arcSummary?: string;
+  appearance?: string;
+  personality?: string;
+  role?: string;
+  type?: string;
+  kind?: string;
+  mode?: string;
+  format?: string;
+  platform?: string;
+  protocol?: string;
+  action?: string;
+  template?: string;
+  direction?: string;
+  deliveryStatus?: string;
+  sessionStatus?: string;
+  tokenStatus?: string;
+  videoStatus?: string;
+  status?: string;
+  health?: string;
+  severity?: string;
+  level?: string;
+  scope?: string;
+  source?: string;
+  startSource?: string;
+  seedanceSource?: string;
+  aspect?: string;
+  resolution?: string;
+  dialogueLanguage?: string;
+  voiceMode?: string;
+  narrationProvider?: string;
+  narrationVoiceId?: string;
+  watermarkMode?: string;
+  watermarkPosition?: string;
+  watermarkPath?: string | null;
+  model?: string;
+  provider?: string;
+  ttsProvider?: string;
+  voiceProvider?: string;
+  voiceId?: string;
+  voiceLabel?: string;
+  narratorVoiceId?: string;
+  renderMode?: string;
+  productionMode?: string;
+  targetChannelId?: string;
+  planCode?: string;
+  planName?: string;
+  referralCode?: string;
+  authProvider?: string;
+  phone?: string | null;
+  handle?: string;
+  externalId?: string;
+  permalink?: string | null;
+  url?: string;
+  fileUrl?: string;
+  videoUrl?: string | null;
+  sourceUrl?: string | null;
+  imageUrl?: string;
+  avatarUrl?: string | null;
+  customerAvatarUrl?: string | null;
+  thumbnailPath?: string | null;
+  mediaSource?: string;
+  mediaPath?: string;
+  outputPath?: string;
+  file?: string;
+  srtFile?: string;
+  sampleFile?: string;
+  dataUrl?: string;
+  color?: string;
+  icon?: string | null;
+  host?: string;
+  username?: string;
+  country?: string;
+  userAgent?: string;
+  os?: string;
+  language?: string;
+  subject?: string;
+  author?: string;
+  participantName?: string;
+  participantAvatar?: string;
+  lastMessagePreview?: string;
+  plannedDate?: string;
+  day?: string;
+  start?: string | number;
+  end?: string | number;
+  encoder?: string;
+  engine?: string;
+  tier?: string;
+  seedanceTier?: string;
+  metric?: string;
+  stage?: string;
+  error?: string | StoreEntity | null;
+  usable?: boolean;
+  fullAccess?: boolean;
+  emailVerified?: boolean;
+  twoFactorEnabled?: boolean;
+  quotaBlocked?: boolean;
+  isGoldenHour?: boolean;
+  aiReviewed?: boolean;
+  enabled?: boolean;
+  unread?: boolean;
+  unreadOnly?: boolean;
+  hasKey?: boolean;
+  circuitBreaker?: boolean;
+  usePoints?: boolean;
+  port?: number;
+  latencyMs?: number;
+  followers?: number;
+  views30d?: number;
+  views?: number;
+  engagements?: number;
+  postCount?: number;
+  channelCount?: number;
+  unreadCount?: number;
+  points?: number;
+  maxChannels?: number;
+  maxDevices?: number;
+  aiBudgetUsd?: number;
+  bgmVolume?: number;
+  watermarkOpacity?: number;
+  watermarkScale?: number;
+  minDelaySec?: number;
+  maxDelaySec?: number;
+  minMinutes?: number;
+  maxMinutes?: number;
+  minSec?: number;
+  maxSec?: number;
+  expiresAt?: number;
+  offlineGraceUntil?: number;
+  tokenExpiresAt?: number;
+  sessionExpiresAt?: number;
+  scheduledAt?: number;
+  publishedAt?: number | null;
+  archivedAt?: number | null;
+  resolvedAt?: number | null;
+  lastMessageAt?: number;
+  lastCheckedAt?: number;
+  lastTestedAt?: number;
+  lastSeenAt?: number;
+  startedAt?: number;
+  finishedAt?: number;
+  paidAt?: number | null;
+  createdAt?: number;
+  updatedAt?: number;
+  durationSec?: number;
+  targetDurationSec?: number;
+  episodeLengthSec?: number;
+  pauseSec?: number;
+  progress?: number;
+  score?: number;
+  hookScore?: number | null;
+  spinVariants?: number;
+  attempts?: number;
+  position?: number;
+  sortOrder?: number;
+  episodeNumber?: number;
+  episodes?: number;
+  days?: number;
+  perDay?: number;
+  spacingHours?: number;
+  limit?: number;
+  target?: number;
+  costUsd?: number;
+  monthlyHardCapUsd?: number;
+  amountVnd?: number;
+  priceVnd?: number;
+  chars?: number;
+  chunksDone?: number;
+  chunksTotal?: number;
+  weight?: number;
+  permissions?: string[];
+  features?: string[];
+  hashtags?: string[];
+  tags?: string[];
+  mediaPaths?: string[];
+  channelIds?: string[];
+  contentIds?: string[];
+  activeIds?: string[];
+  ids?: string[];
+  keywords?: string[];
+  attachments?: string[];
+  acts?: StoreEntity[];
+  goldenHours?: StoreEntity[];
+  scenes?: StoreEntity[];
+  ideas?: StoreEntity[];
+  files?: StoreEntity[];
+  messages?: StoreEntity[];
+  characters?: number | StoreEntity[];
+  shots?: StoreEntity[];
+  takes?: StoreEntity[];
+  assets?: StoreEntity[];
+  renders?: StoreEntity[];
+  patch?: StoreEntity;
+  bible?: StoreEntity;
+  visualBible?: StoreEntity;
+  fashionSetup?: StoreEntity;
+  analysis?: StoreEntity;
+  cast?: Record<string, unknown>;
+  posts?: StoreEntity;
+  reach?: number | StoreEntity;
+  byPlatform?: Record<string, number>;
+  series?: StoreEntity[];
+  platforms?: StoreEntity[];
+  keyPreview?: string | null;
+  trialAvailable?: boolean;
+  apiKey?: string;
+  [key: string]: unknown;
+}
+
+export interface ChannelMetricDailyRow {
+  channelId: string;
+  day: string;
+  views: number;
+  engagements: number;
+  followers: number;
+}
+
 export interface OmniStore {
-  workspaces: any[];
-  proxies: any[];
-  browserProfiles: any[];
-  accounts: any[];
-  channels: any[];
-  channelMetricsDaily: any[];
-  channelGoals: any[];
-  contentItems: any[];
-  contentVariants: any[];
-  contentIdeas: any[];
-  scheduledPosts: any[];
-  conversations: any[];
-  messages: any[];
-  quickReplies: any[];
-  autoReplyRules: any[];
-  videoProjects: any[];
-  videoScenes: any[];
-  renderJobs: any[];
-  series: any[];
-  seriesCharacters: any[];
-  seriesEpisodes: any[];
-  filmProjects: any[];
-  filmAssets: any[];
-  filmTakes: any[];
-  filmRenders: any[];
-  imageProjects: any[];
-  imageResults: any[];
-  ttsJobs: any[];
-  cloneJobs: any[];
-  aiProviders: any[];
-  aiUsage: any[];
-  alerts: any[];
-  activityLog: any[];
-  settings: Record<string, any>;
-  supportTickets: any[];
-  orders: any[];
-  devices: any[];
-  voiceClones: any[];
-  bgmTracks: any[];
-  users: any[];
-  authUser: any;
-  licenseState: any;
+  workspaces: StoreEntity[];
+  proxies: StoreEntity[];
+  browserProfiles: StoreEntity[];
+  accounts: StoreEntity[];
+  channels: StoreEntity[];
+  channelMetricsDaily: ChannelMetricDailyRow[];
+  channelGoals: StoreEntity[];
+  contentItems: StoreEntity[];
+  contentVariants: StoreEntity[];
+  contentIdeas: StoreEntity[];
+  scheduledPosts: StoreEntity[];
+  conversations: StoreEntity[];
+  messages: StoreEntity[];
+  quickReplies: StoreEntity[];
+  autoReplyRules: StoreEntity[];
+  videoProjects: StoreEntity[];
+  videoScenes: StoreEntity[];
+  renderJobs: StoreEntity[];
+  series: StoreEntity[];
+  seriesCharacters: StoreEntity[];
+  seriesEpisodes: StoreEntity[];
+  filmProjects: StoreEntity[];
+  filmAssets: StoreEntity[];
+  filmTakes: StoreEntity[];
+  filmRenders: StoreEntity[];
+  imageProjects: StoreEntity[];
+  imageResults: StoreEntity[];
+  ttsJobs: StoreEntity[];
+  cloneJobs: StoreEntity[];
+  aiProviders: StoreEntity[];
+  aiUsage: StoreEntity[];
+  alerts: StoreEntity[];
+  activityLog: StoreEntity[];
+  settings: StoreEntity;
+  supportTickets: StoreEntity[];
+  orders: StoreEntity[];
+  devices: StoreEntity[];
+  voiceClones: StoreEntity[];
+  bgmTracks: StoreEntity[];
+  users: StoreEntity[];
+  authUser: StoreEntity | null;
+  licenseState: StoreEntity;
 }
 
 export function createInitialSeedStore(): OmniStore {
@@ -60,7 +353,7 @@ export function createInitialSeedStore(): OmniStore {
     health: 'ws_health_04',
   };
 
-  const workspaces = [
+  const workspaces: StoreEntity[] = [
     {
       id: wsIds.fashion,
       name: 'Thời Trang Nữ & Công sở',
@@ -168,7 +461,7 @@ export function createInitialSeedStore(): OmniStore {
     { id: 'bp_2', workspaceId: wsIds.beauty, name: 'Chrome 131 - Beauty KOC', userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36', locale: 'vi-VN', timezone: 'Asia/Ho_Chi_Minh', canvasNoise: true, webrtcShield: true, webglVendor: 'Google Inc. (Intel)' },
   ];
 
-  const accounts = [
+  const accounts: StoreEntity[] = [
     {
       id: 'acc_fb_1',
       workspaceId: wsIds.fashion,
@@ -342,7 +635,7 @@ export function createInitialSeedStore(): OmniStore {
   ];
 
   // Generate 14 days of daily metrics for each channel
-  const channelMetricsDaily: any[] = [];
+  const channelMetricsDaily: ChannelMetricDailyRow[] = [];
   for (let d = 13; d >= 0; d--) {
     const dateStr = new Date(now - d * DAY).toISOString().slice(0, 10);
     for (const ch of channels) {
@@ -478,7 +771,7 @@ export function createInitialSeedStore(): OmniStore {
   const todayStr = new Date(now).toISOString().slice(0, 10);
   const tomorrowStr = new Date(now + DAY).toISOString().slice(0, 10);
 
-  const contentIdeas = [
+  const contentIdeas: StoreEntity[] = [
     {
       id: 'idea_1',
       workspaceId: wsIds.fashion,
@@ -526,7 +819,7 @@ export function createInitialSeedStore(): OmniStore {
     },
   ];
 
-  const scheduledPosts = [
+  const scheduledPosts: StoreEntity[] = [
     {
       id: 'sp_1',
       contentItemId: 'cnt_1',
@@ -598,7 +891,7 @@ export function createInitialSeedStore(): OmniStore {
     },
   ];
 
-  const conversations = [
+  const conversations: StoreEntity[] = [
     {
       id: 'conv_1',
       workspaceId: wsIds.fashion,
@@ -661,7 +954,7 @@ export function createInitialSeedStore(): OmniStore {
     },
   ];
 
-  const messages = [
+  const messages: StoreEntity[] = [
     {
       id: 'msg_1',
       conversationId: 'conv_1',
@@ -762,7 +1055,7 @@ export function createInitialSeedStore(): OmniStore {
     },
   ];
 
-  const videoProjects = [
+  const videoProjects: StoreEntity[] = [
     {
       id: 'vp_1',
       workspaceId: wsIds.fashion,
@@ -1224,7 +1517,7 @@ export function createInitialSeedStore(): OmniStore {
     },
   ];
 
-  const cloneJobs = [
+  const cloneJobs: StoreEntity[] = [
     {
       id: 'clone_1',
       workspaceId: wsIds.fashion,
@@ -1277,7 +1570,7 @@ export function createInitialSeedStore(): OmniStore {
     { id: 'au_4', providerId: 'aip_openai', workspaceId: wsIds.beauty, model: 'gpt-4o-mini', feature: 'inbox.suggestReply', inputTokens: 1800, outputTokens: 650, characters: 0, costUsd: 0.015, ok: true, createdAt: ago(30 * 60000) },
   ];
 
-  const alerts = [
+  const alerts: StoreEntity[] = [
     {
       id: 'al_1',
       severity: 'warn',
@@ -1302,15 +1595,15 @@ export function createInitialSeedStore(): OmniStore {
     },
   ];
 
-  const activityLog = [
-    { id: 105, level: 'info', scope: 'film', message: 'Đã kết xuất thành công cảnh 1 (Seedance 2.0 Fast) cho dự án "Tập 1: Chiếc váy cho buổi phỏng vấn định mệnh"', createdAt: ago(12 * 60000) },
-    { id: 104, level: 'info', scope: 'inbox', message: 'AI Omnira đã soạn bản nháp trả lời tự động cho khách hàng Trần Thanh Thảo trên Fanpage Maison De Ánh', createdAt: ago(18 * 60000) },
-    { id: 103, level: 'info', scope: 'publisher', message: 'Đã xuất bản Reel "Sự thật về Niacinamide 10% vs 20%" lên Instagram @glowup.skincare.vn (68.4K views)', createdAt: ago(2 * HOUR) },
-    { id: 102, level: 'warn', scope: 'proxy', message: 'Kiểm tra sức khỏe định kỳ: Proxy US-02 Residential phản hồi chậm (482ms)', createdAt: ago(3 * HOUR) },
-    { id: 101, level: 'info', scope: 'firebase', message: 'Đã đồng bộ dữ liệu Không gian làm việc & Kho nội dung lên Firebase Firestore (omnira-studio-11041651)', createdAt: ago(4 * HOUR) },
+  const activityLog: StoreEntity[] = [
+    { id: '105', level: 'info', scope: 'film', message: 'Đã kết xuất thành công cảnh 1 (Seedance 2.0 Fast) cho dự án "Tập 1: Chiếc váy cho buổi phỏng vấn định mệnh"', createdAt: ago(12 * 60000) },
+    { id: '104', level: 'info', scope: 'inbox', message: 'AI Omnira đã soạn bản nháp trả lời tự động cho khách hàng Trần Thanh Thảo trên Fanpage Maison De Ánh', createdAt: ago(18 * 60000) },
+    { id: '103', level: 'info', scope: 'publisher', message: 'Đã xuất bản Reel "Sự thật về Niacinamide 10% vs 20%" lên Instagram @glowup.skincare.vn (68.4K views)', createdAt: ago(2 * HOUR) },
+    { id: '102', level: 'warn', scope: 'proxy', message: 'Kiểm tra sức khỏe định kỳ: Proxy US-02 Residential phản hồi chậm (482ms)', createdAt: ago(3 * HOUR) },
+    { id: '101', level: 'info', scope: 'firebase', message: 'Đã đồng bộ dữ liệu Không gian làm việc & Kho nội dung lên Firebase Firestore (omnira-studio-11041651)', createdAt: ago(4 * HOUR) },
   ];
 
-  const supportTickets = [
+  const supportTickets: StoreEntity[] = [
     {
       id: 'tkt_101',
       type: 'feature',

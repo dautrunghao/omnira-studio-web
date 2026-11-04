@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { DynamicEntity } from '../../core/models';
 import { OmniApiService } from '../../core/omni-api.service';
 import { QuotaBarComponent } from '../../layout/quota-bar.component';
 import { ShellStore } from '../../layout/shell.store';
@@ -59,7 +60,7 @@ const ROLE_LABEL: Record<string, string> = { admin: 'Quản trị viên', editor
                 {{ c.label }} <span class="o-badge mono">{{ c.count }}</span>
               </button>
             }
-            <div class="relative ml-auto" style="width: 260px">
+            <div class="relative ml-auto" style="width: min(260px, 100%)">
               <o-icon name="search" [size]="14" class="o-muted" style="position: absolute; left: 10px; top: 11px" />
               <input class="o-input" style="padding-left: 30px" placeholder="Tìm tài khoản, fanpage, handle…" [ngModel]="query()" (ngModelChange)="query.set($event)" />
             </div>
@@ -428,6 +429,7 @@ const ROLE_LABEL: Record<string, string> = { admin: 'Quản trị viên', editor
     `.layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
      @media (min-width: 1280px) { .layout { grid-template-columns: minmax(0, 1fr) 420px; } .inspector { position: sticky; top: 0; max-height: calc(100vh - 120px); overflow: auto; } }
      .tree .children { margin: 0 0 6px 34px; padding-left: 10px; border-left: 1px dashed rgb(var(--c-outline-variant) / 0.6); }
+     @media (max-width: 640px) { .tree .children { margin-left: 14px; } }
      .tt { text-align: left; color: inherit; font: inherit; border: 1px solid transparent; cursor: pointer; padding: 12px; }
      .tt:hover { border-color: rgb(var(--c-overlay) / 0.1); }
      .tt.sel { border-color: rgb(var(--c-primary) / 0.5); }`,
@@ -440,14 +442,14 @@ export class AccountsPageComponent {
 
   readonly roles = ['admin', 'editor', 'moderator', 'advertiser'];
   readonly view = signal<'accounts' | 'proxies' | 'profiles'>('accounts');
-  readonly accounts = signal<any[]>([]);
-  readonly proxies = signal<any[]>([]);
+  readonly accounts = signal<DynamicEntity[]>([]);
+  readonly proxies = signal<DynamicEntity[]>([]);
   readonly loading = signal(true);
   readonly filter = signal<Filter>('all');
   readonly query = signal('');
   readonly selId = signal<string | null>(null);
-  readonly detail = signal<any>(null);
-  readonly activity = signal<any[]>([]);
+  readonly detail = signal<DynamicEntity | null>(null);
+  readonly activity = signal<DynamicEntity[]>([]);
   readonly expanded = signal<Set<string>>(new Set());
   readonly saving = signal(false);
   readonly connecting = signal(false);
@@ -455,10 +457,10 @@ export class AccountsPageComponent {
   readonly addOpen = signal(false);
   readonly editId = signal<string | null>(null);
   readonly pageOpen = signal(false);
-  readonly pageFor = signal<any>(null);
+  readonly pageFor = signal<DynamicEntity | null>(null);
   readonly importOpen = signal(false);
-  readonly importFor = signal<any>(null);
-  readonly connectFor = signal<any>(null);
+  readonly importFor = signal<DynamicEntity | null>(null);
+  readonly connectFor = signal<DynamicEntity | null>(null);
   readonly proxyOpen = signal(false);
 
   acc = { platform: 'facebook', displayName: '', handle: '', externalId: '', workspaceId: '', proxyId: '', twoFactorEnabled: false, note: '' };
@@ -471,13 +473,13 @@ export class AccountsPageComponent {
   readonly rel = fmtRelative;
   readonly dt = fmtDateTime;
 
-  readonly channels = computed(() => this.accounts().flatMap((a) => a.channels ?? []));
+  readonly channels = computed(() => this.accounts().flatMap((a): DynamicEntity[] => a.channels ?? []));
   readonly connectedPct = computed(() => {
     const ch = this.channels();
     return ch.length ? Math.round((ch.filter((c) => c.tokenStatus === 'valid').length / ch.length) * 1000) / 10 : 0;
   });
   readonly profiles = computed(() => {
-    const m = new Map<string, any>();
+    const m = new Map<string, DynamicEntity>();
     for (const a of this.accounts()) if (a.browserProfile) m.set(a.browserProfile.id, a.browserProfile);
     return [...m.values()];
   });
@@ -500,12 +502,12 @@ export class AccountsPageComponent {
   private readonly filtered = computed(() => {
     const q = this.query().trim().toLowerCase();
     let l = this.filter() === 'attention' ? this.attention() : this.accounts();
-    if (q) l = l.filter((a) => [a.displayName, a.handle, a.externalId, ...(a.channels ?? []).map((c: any) => c.name + ' ' + (c.handle ?? ''))].join(' ').toLowerCase().includes(q));
+    if (q) l = l.filter((a) => [a.displayName, a.handle, a.externalId, ...(a.channels ?? []).map((c: DynamicEntity) => c.name + ' ' + (c.handle ?? ''))].join(' ').toLowerCase().includes(q));
     return l;
   });
   readonly fbAccounts = computed(() => this.filtered().filter((a) => a.platform === 'facebook'));
-  readonly fbPages = computed(() => this.fbAccounts().reduce((s, a) => s + (a.channels ?? []).filter((c: any) => c.platform === 'facebook').length, 0));
-  readonly igChannels = computed(() => this.filtered().flatMap((a) => (a.channels ?? []).filter((c: any) => c.platform === 'instagram').map((c: any) => ({ a, c }))));
+  readonly fbPages = computed(() => this.fbAccounts().reduce((s, a) => s + (a.channels ?? []).filter((c: DynamicEntity) => c.platform === 'facebook').length, 0));
+  readonly igChannels = computed(() => this.filtered().flatMap((a) => (a.channels ?? []).filter((c: DynamicEntity) => c.platform === 'instagram').map((c: DynamicEntity) => ({ a, c }))));
   readonly visibleCount = computed(() => {
     const f = this.filter();
     const l = this.filtered();
@@ -531,7 +533,7 @@ export class AccountsPageComponent {
 
   show(p: string) {
     const f = this.filter();
-    return f === 'all' || f === 'attention' || f === p || (p === 'facebook' && f === 'instagram' && false);
+    return f === 'all' || f === 'attention' || f === p;
   }
   byPlatform(p: string) {
     return this.filtered().filter((a) => a.platform === p);
@@ -554,14 +556,14 @@ export class AccountsPageComponent {
   roleLabel(r: string) {
     return ROLE_LABEL[r] ?? r;
   }
-  session(a: any) {
+  session(a: DynamicEntity) {
     let st = a.sessionStatus ?? 'unknown';
     if (st === 'active' && a.sessionExpiresAt && new Date(a.sessionExpiresAt).getTime() - Date.now() < 3 * 86400000) st = 'expiring';
     return SESSION_LABEL[st] ?? { label: st, health: a.health ?? 'idle' };
   }
-  needsAttention(a: any) {
+  needsAttention(a: DynamicEntity) {
     const s = this.session(a).health;
-    return s === 'warn' || s === 'error' || a.health === 'warn' || a.health === 'error' || (a.channels ?? []).some((c: any) => c.tokenStatus !== 'valid' || c.health === 'error' || c.quotaBlocked);
+    return s === 'warn' || s === 'error' || a.health === 'warn' || a.health === 'error' || (a.channels ?? []).some((c: DynamicEntity) => c.tokenStatus !== 'valid' || c.health === 'error' || c.quotaBlocked);
   }
   proxyUsage(id: string) {
     return this.accounts().filter((a) => a.proxyId === id).length;
@@ -572,15 +574,15 @@ export class AccountsPageComponent {
 
   async load() {
     const workspaceId = this.api.activeWorkspaceId();
-    const [t, p] = await Promise.all([this.api.invokeRaw('accounts.tree', { workspaceId }), this.api.invokeRaw('proxies.list', { workspaceId })]);
+    const [t, p] = await Promise.all([this.api.invokeRaw<DynamicEntity[]>('accounts.tree', { workspaceId }), this.api.invokeRaw<DynamicEntity[]>('proxies.list', { workspaceId })]);
     this.loading.set(false);
     if (!t.ok) return this.api.toast('Không tải được tài khoản', errOf(t), 'error');
-    const list = asList(t.data);
+    const list = asList<DynamicEntity>(t.data);
     this.accounts.set(list);
-    this.proxies.set(asList(p.ok ? p.data : []));
+    this.proxies.set(asList<DynamicEntity>(p.ok ? p.data : []));
     if (this.expanded().size === 0) this.expanded.set(new Set(list.filter((a) => a.platform === 'facebook').slice(0, 3).map((a) => a.id)));
     if (this.pendingChannel) {
-      const owner = list.find((a) => (a.channels ?? []).some((c: any) => c.id === this.pendingChannel));
+      const owner = list.find((a) => (a.channels ?? []).some((c: DynamicEntity) => c.id === this.pendingChannel));
       this.pendingChannel = null;
       if (owner) void this.select(owner.id);
     } else if (this.selId()) void this.select(this.selId()!);
@@ -590,11 +592,11 @@ export class AccountsPageComponent {
     this.selId.set(id);
     const local = this.accounts().find((a) => a.id === id);
     if (local) this.detail.set(local);
-    const [d, act] = await Promise.all([this.api.invokeRaw('accounts.get', { id }), this.api.invokeRaw('activity.recent', { limit: 50 })]);
+    const [d, act] = await Promise.all([this.api.invokeRaw<DynamicEntity>('accounts.get', { id }), this.api.invokeRaw<DynamicEntity[]>('activity.recent', { limit: 50 })]);
     if (this.selId() !== id) return;
     if (d.ok && d.data) this.detail.set({ ...(local ?? {}), ...d.data });
     const name = (this.detail()?.displayName ?? '').toLowerCase();
-    this.activity.set(asList(act.ok ? act.data : []).filter((e: any) => name && String(e.message ?? '').toLowerCase().includes(name)).slice(0, 5));
+    this.activity.set(asList<DynamicEntity>(act.ok ? act.data : []).filter((e) => name && String(e.message ?? '').toLowerCase().includes(name)).slice(0, 5));
   }
 
   toggleExpand(id: string, e: Event) {
@@ -607,7 +609,7 @@ export class AccountsPageComponent {
   async connect(platform: 'facebook' | 'tiktok' | 'youtube', accountId?: string) {
     this.connecting.set(true);
     const ep = platform === 'facebook' ? 'accounts.connectFacebook' : platform === 'tiktok' ? 'accounts.connectTiktok' : 'accounts.connectYoutube';
-    const r = await this.api.invokeRaw<any>(ep, { accountId, workspaceId: this.api.activeWorkspaceId() });
+    const r = await this.api.invokeRaw<DynamicEntity>(ep, { accountId, workspaceId: this.api.activeWorkspaceId() });
     this.connecting.set(false);
     if (!r.ok) return this.api.toast(`Không kết nối được ${PLATFORM_META[platform].label}`, errOf(r), 'error');
     const url = r.data?.authUrl ?? r.data?.url;
@@ -626,7 +628,7 @@ export class AccountsPageComponent {
     this.addOpen.set(true);
   }
 
-  openEdit(a: any) {
+  openEdit(a: DynamicEntity) {
     this.editId.set(a.id);
     this.acc = { platform: a.platform, displayName: a.displayName ?? '', handle: a.handle ?? '', externalId: a.externalId ?? '', workspaceId: a.workspaceId ?? '', proxyId: a.proxyId ?? '', twoFactorEnabled: !!a.twoFactorEnabled, note: a.note ?? '' };
     this.addOpen.set(true);
@@ -644,19 +646,19 @@ export class AccountsPageComponent {
       note: this.acc.note.trim() || null,
     };
     const id = this.editId();
-    const r = id ? await this.api.invokeRaw('accounts.update', { id, patch: body }) : await this.api.invokeRaw<any>('accounts.create', { ...body, platform: this.acc.platform });
+    const r = id ? await this.api.invokeRaw<DynamicEntity>('accounts.update', { id, patch: body }) : await this.api.invokeRaw<DynamicEntity>('accounts.create', { ...body, platform: this.acc.platform });
     this.saving.set(false);
     if (!r.ok) return this.api.toast('Không lưu được tài khoản', errOf(r), 'error');
     this.addOpen.set(false);
     this.api.toast(id ? 'Đã cập nhật tài khoản' : 'Đã thêm tài khoản', body.displayName, 'success');
     await this.load();
-    const newId = id ?? (r.data as any)?.id;
+    const newId = id ?? r.data?.id;
     if (newId) void this.select(newId);
     void this.shell.loadWorkspaces();
     void this.shell.loadQuota();
   }
 
-  async patchAccount(id: string, patch: any, msg: string) {
+  async patchAccount(id: string, patch: DynamicEntity, msg: string) {
     const r = await this.api.invokeRaw('accounts.update', { id, patch });
     if (!r.ok) return this.api.toast('Không cập nhật được', errOf(r), 'error');
     this.api.toast(msg, undefined, 'success');
@@ -664,7 +666,7 @@ export class AccountsPageComponent {
     void this.shell.loadWorkspaces();
   }
 
-  async deleteAccount(a: any) {
+  async deleteAccount(a: DynamicEntity) {
     if (!confirm(`Xóa "${a.displayName}" cùng ${(a.channels ?? []).length} kênh, token và lịch đăng liên quan? Không thể hoàn tác.`)) return;
     const r = await this.api.invokeRaw('accounts.delete', { id: a.id });
     if (!r.ok) return this.api.toast('Không xóa được', errOf(r), 'error');
@@ -676,7 +678,7 @@ export class AccountsPageComponent {
     void this.shell.loadQuota();
   }
 
-  openAddPage(a: any) {
+  openAddPage(a: DynamicEntity) {
     this.pageFor.set(a);
     this.pg = { name: '', externalId: '', role: 'admin', nicheTag: '' };
     this.pageOpen.set(true);
@@ -684,17 +686,18 @@ export class AccountsPageComponent {
 
   async savePage() {
     this.saving.set(true);
-    const r = await this.api.invokeRaw('channels.createPage', { accountId: this.pageFor().id, name: this.pg.name.trim(), externalId: this.pg.externalId.trim() || null, role: this.pg.role || null, nicheTag: this.pg.nicheTag.trim() || null });
+    const r = await this.api.invokeRaw('channels.createPage', { accountId: this.pageFor()?.id, name: this.pg.name.trim(), externalId: this.pg.externalId.trim() || null, role: this.pg.role || null, nicheTag: this.pg.nicheTag.trim() || null });
     this.saving.set(false);
     if (!r.ok) return this.api.toast('Không thêm được Fanpage', errOf(r), 'error');
     this.pageOpen.set(false);
     this.api.toast('Đã thêm Fanpage', this.pg.name, 'success');
-    this.expanded.update((s) => new Set(s).add(this.pageFor().id));
+    const pfId = this.pageFor()?.id;
+    if (pfId) this.expanded.update((s) => new Set(s).add(pfId));
     await this.load();
     void this.shell.loadQuota();
   }
 
-  openImport(a: any) {
+  openImport(a: DynamicEntity) {
     this.importFor.set(a);
     this.imp = { userToken: '', appId: '', appSecret: '' };
     this.importOpen.set(true);
@@ -702,7 +705,7 @@ export class AccountsPageComponent {
 
   async doImport() {
     this.saving.set(true);
-    const r = await this.api.invokeRaw<any>('accounts.importFacebook', { accountId: this.importFor().id, userToken: this.imp.userToken.trim(), appId: this.imp.appId.trim() || null, appSecret: this.imp.appSecret.trim() || null });
+    const r = await this.api.invokeRaw<DynamicEntity>('accounts.importFacebook', { accountId: this.importFor()?.id, userToken: this.imp.userToken.trim(), appId: this.imp.appId.trim() || null, appSecret: this.imp.appSecret.trim() || null });
     this.saving.set(false);
     if (!r.ok) return this.api.toast('Không nhập được Fanpage', errOf(r), 'error');
     this.importOpen.set(false);
@@ -712,13 +715,14 @@ export class AccountsPageComponent {
     void this.shell.loadQuota();
   }
 
-  openConnect(c: any) {
+  openConnect(c: DynamicEntity) {
     this.tk = { token: '', refreshToken: '', clientKey: '', clientSecret: '' };
     this.connectFor.set(c);
   }
 
   async doConnect() {
     const c = this.connectFor();
+    if (!c) return;
     this.saving.set(true);
     const r = await this.api.invokeRaw('channels.connect', { channelId: c.id, token: this.tk.token.trim(), refreshToken: this.tk.refreshToken.trim() || null, clientKey: this.tk.clientKey.trim() || null, clientSecret: this.tk.clientSecret.trim() || null });
     this.saving.set(false);
@@ -728,16 +732,16 @@ export class AccountsPageComponent {
     await this.load();
   }
 
-  async verify(c: any) {
+  async verify(c: DynamicEntity) {
     this.busyId.set(c.id);
-    const r = await this.api.invokeRaw<any>('channels.verify', { id: c.id });
+    const r = await this.api.invokeRaw<DynamicEntity>('channels.verify', { id: c.id });
     this.busyId.set(null);
     if (!r.ok) return this.api.toast('Token không dùng được', errOf(r), 'error');
     this.api.toast('Token hoạt động tốt', c.name, 'success');
     await this.load();
   }
 
-  async disconnect(c: any) {
+  async disconnect(c: DynamicEntity) {
     if (!confirm(`Ngắt kết nối API của "${c.name}"? Lịch đăng của kênh sẽ tạm dừng.`)) return;
     const r = await this.api.invokeRaw('channels.disconnect', { id: c.id });
     if (!r.ok) return this.api.toast('Không ngắt được', errOf(r), 'error');
@@ -745,7 +749,7 @@ export class AccountsPageComponent {
     await this.load();
   }
 
-  async deleteChannel(c: any) {
+  async deleteChannel(c: DynamicEntity) {
     if (!confirm(`Xóa kênh "${c.name}" cùng lịch đăng & token liên quan?`)) return;
     const r = await this.api.invokeRaw('channels.delete', { id: c.id });
     if (!r.ok) return this.api.toast('Không xóa được kênh', errOf(r), 'error');
@@ -791,7 +795,7 @@ export class AccountsPageComponent {
     await this.load();
   }
 
-  async deleteProxy(p: any) {
+  async deleteProxy(p: DynamicEntity) {
     const used = this.proxyUsage(p.id);
     if (!confirm(`Xóa proxy "${p.label}"?${used ? ` ${used} tài khoản đang dùng sẽ chuyển sang không dùng proxy.` : ''}`)) return;
     const r = await this.api.invokeRaw('proxies.delete', { id: p.id });
@@ -800,7 +804,7 @@ export class AccountsPageComponent {
     await this.load();
   }
 
-  async toggleNoise(bp: any) {
+  async toggleNoise(bp: DynamicEntity) {
     const r = await this.api.invokeRaw('workspaces.setCanvasNoise', { id: bp.workspaceId, enabled: !bp.canvasNoise });
     if (!r.ok) return this.api.toast('Không đổi được', errOf(r), 'error');
     this.api.toast('Đã cập nhật nhiễu Canvas', this.wsName(bp.workspaceId), 'success');

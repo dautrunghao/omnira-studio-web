@@ -4,69 +4,9 @@
     <meta charset="utf-8" />
     <title>Omnira Studio – Quản lý & Tự động hóa đa kênh</title>
     <base href="/" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b1326" />
     <link rel="icon" type="image/png" href="assets/icon.png" />
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter Variable', 'Inter', 'system-ui', 'sans-serif'],
-              mono: ['JetBrains Mono Variable', 'JetBrains Mono', 'monospace'],
-              display: ['Space Grotesk Variable', 'Space Grotesk', 'sans-serif'],
-              montserrat: ['Montserrat', 'sans-serif'],
-            },
-            colors: {
-              surface: {
-                DEFAULT: 'rgb(var(--c-surface) / <alpha-value>)',
-                dim: 'rgb(var(--c-surface-dim) / <alpha-value>)',
-                bright: 'rgb(var(--c-surface-bright) / <alpha-value>)',
-                lowest: 'rgb(var(--c-surface-container-lowest) / <alpha-value>)',
-                low: 'rgb(var(--c-surface-container-low) / <alpha-value>)',
-                container: 'rgb(var(--c-surface-container) / <alpha-value>)',
-                high: 'rgb(var(--c-surface-container-high) / <alpha-value>)',
-                highest: 'rgb(var(--c-surface-container-highest) / <alpha-value>)',
-                variant: 'rgb(var(--c-surface-variant) / <alpha-value>)',
-              },
-              on: {
-                surface: 'rgb(var(--c-on-surface) / <alpha-value>)',
-                'surface-variant': 'rgb(var(--c-on-surface-variant) / <alpha-value>)',
-                primary: 'rgb(var(--c-on-primary) / <alpha-value>)',
-                'primary-container': 'rgb(var(--c-on-primary-container) / <alpha-value>)',
-                secondary: 'rgb(var(--c-on-secondary) / <alpha-value>)',
-                tertiary: 'rgb(var(--c-on-tertiary) / <alpha-value>)',
-                error: 'rgb(var(--c-on-error) / <alpha-value>)',
-              },
-              outline: {
-                DEFAULT: 'rgb(var(--c-outline) / <alpha-value>)',
-                variant: 'rgb(var(--c-outline-variant) / <alpha-value>)',
-              },
-              primary: {
-                DEFAULT: 'rgb(var(--c-primary) / <alpha-value>)',
-                container: 'rgb(var(--c-primary-container) / <alpha-value>)',
-              },
-              secondary: {
-                DEFAULT: 'rgb(var(--c-secondary) / <alpha-value>)',
-                container: 'rgb(var(--c-secondary-container) / <alpha-value>)',
-              },
-              tertiary: {
-                DEFAULT: 'rgb(var(--c-tertiary) / <alpha-value>)',
-                container: 'rgb(var(--c-tertiary-container) / <alpha-value>)',
-              },
-              error: {
-                DEFAULT: 'rgb(var(--c-error) / <alpha-value>)',
-                container: 'rgb(var(--c-error-container) / <alpha-value>)',
-              },
-              success: 'rgb(var(--c-success) / <alpha-value>)',
-              warning: 'rgb(var(--c-warning) / <alpha-value>)',
-              danger: 'rgb(var(--c-danger) / <alpha-value>)',
-            }
-          }
-        }
-      }
-    </script>
   </head>
   <body class="bg-surface text-on-surface antialiased selection:bg-primary/25 selection:text-on-surface">
     <app-root></app-root>

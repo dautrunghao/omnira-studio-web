@@ -79,10 +79,10 @@ export class LineChartComponent {
   readonly padB = 24;
   readonly hover = signal(-1);
 
-  fmt(v: any) {
+  fmt(v: number | string | null | undefined): string {
     return v == null || isNaN(+v) ? '–' : this.formatValue()(+v);
   }
-  fmtX(s: string) {
+  fmtX(s: string): string {
     return this.formatX()(s);
   }
 
@@ -94,11 +94,11 @@ export class LineChartComponent {
     return Math.ceil((m * 1.1) / mag) * mag;
   });
 
-  xAt(i: number) {
+  xAt(i: number): number {
     const n = Math.max(1, this.xLabels().length - 1);
     return this.padL + ((this.W - this.padL - this.padR) * i) / n;
   }
-  private yAt(v: number) {
+  private yAt(v: number): number {
     const h = this.height() - this.padT - this.padB;
     return this.padT + h - (h * v) / this.max();
   }

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import { DynamicEntity } from '../../core/models';
 import { OmniApiService } from '../../core/omni-api.service';
 import { ShellStore } from '../../layout/shell.store';
 import { IconComponent } from '../../shared/icon.component';
@@ -29,7 +30,7 @@ interface Slot {
 const SEV_ICON: Record<string, string> = { error: 'alert', warn: 'alert', info: 'info' };
 
 /** Chuẩn hóa summary – chịu được backend trả thiếu trường. */
-function normSummary(s: any): Summary | null {
+function normSummary(s: DynamicEntity | null | undefined): Summary | null {
   if (!s) return null;
   const byP = s.channels?.byPlatform ?? {};
   return {
@@ -47,16 +48,16 @@ function normSummary(s: any): Summary | null {
 }
 
 /** Daemon: chấp nhận shape gốc { render, publish, autoReply } hoặc { publisher, inboxSync }. */
-function normDaemon(d: any) {
+function normDaemon(d: DynamicEntity | null | undefined): DynamicEntity | null {
   if (!d) return null;
   return {
-    render: d.render ?? { running: d.renderer?.running ?? 0, queued: d.renderer?.queued ?? 0, current: d.renderer?.current ?? null },
-    publish: d.publish ?? { next24h: d.publisher?.queued ?? 0, nextAt: d.publisher?.nextRunAt ?? null, nextChannels: d.publisher?.nextChannels ?? [] },
-    autoReply: d.autoReply ?? { enabledRules: d.inboxSync?.rules ?? 0, repliedToday: d.inboxSync?.repliedToday ?? 0, pendingDrafts: d.inboxSync?.pendingDrafts ?? 0 },
+    render: d.render ?? ({ running: Number(d.renderer?.running ?? 0), queued: d.renderer?.queued ?? 0, current: d.renderer?.current ?? undefined } as DynamicEntity),
+    publish: d.publish ?? ({ next24h: d.publisher?.queued ?? 0, nextAt: d.publisher?.nextRunAt ?? null, nextChannels: d.publisher?.nextChannels ?? [] } as DynamicEntity),
+    autoReply: d.autoReply ?? ({ enabledRules: Number(d.inboxSync?.rules ?? 0), repliedToday: d.inboxSync?.repliedToday ?? 0, pendingDrafts: d.inboxSync?.pendingDrafts ?? 0 } as DynamicEntity),
   };
 }
 
-function mergeSlots(workspaces: any[]): Slot[] {
+function mergeSlots(workspaces: DynamicEntity[]): Slot[] {
   const m = new Map<string, Slot & { w: number }>();
   let total = 0;
   for (const w of workspaces) {
@@ -329,18 +330,18 @@ export class DashboardPageComponent {
 
   readonly s = signal<Summary | null>(null);
   readonly error = signal<string | null>(null);
-  readonly alerts = signal<any[]>([]);
-  readonly top = signal<any[] | null>(null);
-  readonly daemon = signal<any>(null);
-  readonly lastSync = signal<any>(null);
-  readonly activity = signal<any[]>([]);
+  readonly alerts = signal<DynamicEntity[]>([]);
+  readonly top = signal<DynamicEntity[] | null>(null);
+  readonly daemon = signal<DynamicEntity | null>(null);
+  readonly lastSync = signal<DynamicEntity | null>(null);
+  readonly activity = signal<DynamicEntity[]>([]);
   readonly syncing = signal(false);
   readonly range = signal('30');
   readonly table = signal(false);
   readonly actFilter = signal('all');
 
   readonly int = fmtInt;
-  readonly pct = (n: any) => fmtPct(n);
+  readonly pct = (n: number | null | undefined) => fmtPct(n);
   readonly spct = fmtSignedPct;
   readonly compact = fmtCompact;
   readonly rel = fmtRelative;
@@ -349,7 +350,7 @@ export class DashboardPageComponent {
   readonly activeWs = computed(() => this.shell.activeWorkspace());
   readonly slots = computed<Slot[]>(() => {
     const a = this.activeWs();
-    return a ? [...(a['goldenHours'] ?? [])].sort((x: Slot, y: Slot) => x.start.localeCompare(y.start)) : mergeSlots(this.shell.workspaces());
+    return a ? [...(a.goldenHours ?? [])].sort((x: Slot, y: Slot) => x.start.localeCompare(y.start)) : mergeSlots(this.shell.workspaces());
   });
   readonly maxW = computed(() => Math.max(0.01, ...this.slots().map((s) => s.weight)));
   readonly hot = computed(() => new Set([...this.slots()].sort((a, b) => b.weight - a.weight).slice(0, 2).map((s) => s.start)));
@@ -398,12 +399,12 @@ export class DashboardPageComponent {
   async load() {
     const workspaceId = this.api.activeWorkspaceId();
     const [sum, al, top, dm, ls, act] = await Promise.all([
-      this.api.invokeRaw('dashboard.summary', { workspaceId }),
-      this.api.invokeRaw('alerts.open'),
-      this.api.invokeRaw('dashboard.topChannels', { workspaceId, limit: 3 }),
-      this.api.invokeRaw('dashboard.daemon', { workspaceId }),
-      this.api.invokeRaw('insights.last'),
-      this.api.invokeRaw('activity.recent', { limit: 40 }),
+      this.api.invokeRaw<DynamicEntity>('dashboard.summary', { workspaceId }),
+      this.api.invokeRaw<DynamicEntity[]>('alerts.open'),
+      this.api.invokeRaw<DynamicEntity[]>('dashboard.topChannels', { workspaceId, limit: 3 }),
+      this.api.invokeRaw<DynamicEntity>('dashboard.daemon', { workspaceId }),
+      this.api.invokeRaw<DynamicEntity>('insights.last'),
+      this.api.invokeRaw<DynamicEntity[]>('activity.recent', { limit: 40 }),
     ]);
     if (sum.ok) {
       this.s.set(normSummary(sum.data));
@@ -418,14 +419,15 @@ export class DashboardPageComponent {
 
   async runSync() {
     this.syncing.set(true);
-    const r = await this.api.invokeRaw<any>('insights.sync');
+    const r = await this.api.invokeRaw<DynamicEntity>('insights.sync');
     this.syncing.set(false);
     if (!r.ok) return this.api.toast('Đồng bộ thất bại', errOf(r), 'error');
-    const d = r.data ?? {};
+    const d: DynamicEntity = r.data ?? {};
     const errors: string[] = d.errors ?? [];
     if (!d.channels && !errors.length) this.api.toast('Chưa có kênh nào kết nối API', 'Vào Tài khoản & Kênh → Kết nối Facebook', 'info');
     else this.api.toast(`Đã đồng bộ số liệu ${d.channels ?? 0} kênh`, undefined, 'success');
-    for (const e of [...errors, ...(d.notes ?? [])].slice(0, 3)) this.api.toast('Lưu ý đồng bộ', e, 'warn');
+    const notes = Array.isArray(d.notes) ? d.notes : [];
+    for (const e of [...errors, ...notes].slice(0, 3)) this.api.toast('Lưu ý đồng bộ', e, 'warn');
     this.shell.bump('dashboard', 'accounts', 'channels', 'analytics');
   }
 

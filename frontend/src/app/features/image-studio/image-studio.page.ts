@@ -1,7 +1,8 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { DynamicEntity } from '../../core/models';
 import { OmniApiService } from '../../core/omni-api.service';
 
 @Component({
@@ -264,9 +265,9 @@ export class ImageStudioPage implements OnInit {
   private readonly api = inject(OmniApiService);
   private readonly router = inject(Router);
 
-  readonly projects = signal<any[]>([]);
+  readonly projects = signal<DynamicEntity[]>([]);
   readonly activeId = signal<string | null>(null);
-  readonly currentProject = signal<any | null>(null);
+  readonly currentProject = signal<DynamicEntity | null>(null);
   readonly generatingIdeas = signal(false);
   readonly generatingImages = signal(false);
   readonly toastMsg = signal('');
@@ -293,7 +294,7 @@ export class ImageStudioPage implements OnInit {
   }
 
   async loadList() {
-    const list = await this.api.invoke<any[]>('imagestudio.list', {});
+    const list = await this.api.invoke<DynamicEntity[]>('imagestudio.list', {});
     this.projects.set(list || []);
     const pid = this.activeId() || list?.[0]?.id || null;
     if (pid) {
@@ -305,19 +306,19 @@ export class ImageStudioPage implements OnInit {
 
   async selectProject(id: string) {
     this.activeId.set(id);
-    const detail = await this.api.invoke<any>('imagestudio.get', { id });
+    const detail = await this.api.invoke<DynamicEntity>('imagestudio.get', { id });
     this.currentProject.set(detail);
   }
 
   async createNewProject() {
-    const created = await this.api.invoke<any>('imagestudio.create', {
+    const created = await this.api.invoke<DynamicEntity>('imagestudio.create', {
       title: 'Bộ ảnh Lookbook AI mới',
     });
     if (created?.id) this.activeId.set(created.id);
     await this.loadList();
   }
 
-  async saveProjectPatch(patch: any) {
+  async saveProjectPatch(patch: DynamicEntity) {
     const p = this.currentProject();
     if (!p) return;
     await this.api.invoke('imagestudio.update', { id: p.id, patch });
@@ -350,7 +351,7 @@ export class ImageStudioPage implements OnInit {
     if (!p) return;
     this.generatingImages.set(true);
     try {
-      const res = await this.api.invoke<any>('imagestudio.generate', { projectId: p.id });
+      const res = await this.api.invoke<DynamicEntity>('imagestudio.generate', { projectId: p.id });
       this.toastMsg.set(`Đã tạo xong ${res?.created || 2} ảnh AI chất lượng cao!`);
       await this.loadList();
     } finally {

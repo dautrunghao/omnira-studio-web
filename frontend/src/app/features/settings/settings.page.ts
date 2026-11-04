@@ -2,6 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
+import { DynamicEntity } from '../../core/models';
 import { OmniApiService } from '../../core/omni-api.service';
 
 type SettingsTab = 'ai' | 'video' | 'social' | 'system';
@@ -307,12 +308,12 @@ export class SettingsPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
 
   readonly activeTab = signal<SettingsTab>('ai');
-  readonly providers = signal<any[]>([]);
-  readonly budget = signal<any | null>(null);
-  readonly mediaInfo = signal<any | null>(null);
-  readonly flowStatus = signal<any | null>(null);
-  readonly voiceClones = signal<any[]>([]);
-  readonly storageInfo = signal<any | null>(null);
+  readonly providers = signal<DynamicEntity[]>([]);
+  readonly budget = signal<DynamicEntity | null>(null);
+  readonly mediaInfo = signal<DynamicEntity | null>(null);
+  readonly flowStatus = signal<DynamicEntity | null>(null);
+  readonly voiceClones = signal<DynamicEntity[]>([]);
+  readonly storageInfo = signal<DynamicEntity | null>(null);
   readonly toastMsg = signal('');
 
   keyInputs: Record<string, string> = {};
@@ -328,12 +329,12 @@ export class SettingsPage implements OnInit {
 
   async loadAll() {
     const [prov, bud, med, flw, vcs, stg] = await Promise.all([
-      this.api.invoke<any[]>('ai.providers', {}),
-      this.api.invoke<any>('settings.budget', {}),
-      this.api.invoke<any>('media.info', {}),
-      this.api.invoke<any>('flow.status', {}),
-      this.api.invoke<any[]>('localtts.clones', {}),
-      this.api.invoke<any>('system.storage', {}),
+      this.api.invoke<DynamicEntity[]>('ai.providers', {}),
+      this.api.invoke<DynamicEntity>('settings.budget', {}),
+      this.api.invoke<DynamicEntity>('media.info', {}),
+      this.api.invoke<DynamicEntity>('flow.status', {}),
+      this.api.invoke<DynamicEntity[]>('localtts.clones', {}),
+      this.api.invoke<DynamicEntity>('system.storage', {}),
     ]);
     this.providers.set(prov || []);
     this.budget.set(bud);
@@ -343,7 +344,7 @@ export class SettingsPage implements OnInit {
     this.storageInfo.set(stg);
   }
 
-  async saveProviderKey(p: any) {
+  async saveProviderKey(p: DynamicEntity) {
     const apiKey = this.keyInputs[p.provider]?.trim();
     if (!apiKey) return;
     await this.api.invoke('ai.setKey', { provider: p.provider, apiKey });
@@ -352,8 +353,8 @@ export class SettingsPage implements OnInit {
     await this.loadAll();
   }
 
-  async testSingleProvider(p: any) {
-    const res = await this.api.invoke<any>('ai.test', { provider: p.provider });
+  async testSingleProvider(p: DynamicEntity) {
+    const res = await this.api.invoke<DynamicEntity>('ai.test', { provider: p.provider });
     this.toastMsg.set(`Kết nối ${p.label || p.provider} ổn định (${res?.latencyMs || 240}ms)!`);
   }
 
@@ -374,7 +375,7 @@ export class SettingsPage implements OnInit {
 
   async addVoiceClone() {
     if (!this.newCloneName.trim()) return;
-    const vc = await this.api.invoke<any>('localtts.addClone', { name: this.newCloneName.trim() });
+    const vc = await this.api.invoke<DynamicEntity>('localtts.addClone', { name: this.newCloneName.trim() });
     this.voiceClones.set([...this.voiceClones(), vc]);
     this.newCloneName = '';
     this.toastMsg.set(`Đã thêm giọng nhân bản "${vc.name}" vào Omnira Local TTS!`);

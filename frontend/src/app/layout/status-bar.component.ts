@@ -27,8 +27,8 @@ const ENCODER_SHORT: Record<string, string> = {
           } @else { Render: rảnh }
           @if (shell.media()?.queued) { · chờ {{ shell.media()?.queued }} }
         </span>
-        <span class="it" title="Bộ mã hóa video"><o-icon name="monitor" [size]="13" /> Encoder: {{ encoder() }}</span>
-        <span class="it" title="Kết nối máy chủ"><span class="o-dot success"></span> Omnira Cloud · Firebase</span>
+        <span class="it sb-hide-sm" title="Bộ mã hóa video"><o-icon name="monitor" [size]="13" /> Encoder: {{ encoder() }}</span>
+        <span class="it sb-hide-md" title="Kết nối máy chủ"><span class="o-dot success"></span> Omnira Cloud · Firebase</span>
       </div>
       <div class="flex shrink-0 items-center gap-4">
         <span class="it" title="Bộ nhớ ứng dụng / tổng RAM"><o-icon name="memory" [size]="13" /> RAM: {{ api.systemStats().appMemoryMb }}MB / {{ gb() }}GB</span>
@@ -37,9 +37,11 @@ const ENCODER_SHORT: Record<string, string> = {
     </footer>
   `,
   styles: [
-    `:host { display: block; flex-shrink: 0; }
-     .sb { display: flex; height: var(--statusbar-h); flex-shrink: 0; align-items: center; justify-content: space-between; gap: 16px; padding: 0 12px; border-top: 1px solid rgb(var(--c-overlay) / 0.06); background: rgb(var(--c-surface-container-lowest)); font-family: 'JetBrains Mono Variable', monospace; font-size: 11px; color: rgb(var(--c-on-surface-variant)); font-variant-numeric: tabular-nums; }
-     .it { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }`,
+    `:host { display: block; flex-shrink: 0; width: 100%; max-width: 100vw; }
+     .sb { display: flex; height: var(--statusbar-h); width: 100%; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 12px; padding: 0 12px; border-top: 1px solid rgb(var(--c-overlay) / 0.06); background: rgb(var(--c-surface-container-lowest)); font-family: 'JetBrains Mono Variable', monospace; font-size: 11px; color: rgb(var(--c-on-surface-variant)); font-variant-numeric: tabular-nums; overflow: hidden; }
+     .it { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+     @media (max-width: 960px) { .sb-hide-md { display: none; } }
+     @media (max-width: 768px) { :host { display: none; } }`,
   ],
 })
 export class StatusBarComponent {
@@ -49,14 +51,15 @@ export class StatusBarComponent {
   run() {
     return this.shell.media()?.running ?? null;
   }
-  pct(p: number) {
-    return Math.round((p ?? 0) <= 1 ? (p ?? 0) * 100 : p);
+  pct(p?: number): number {
+    const v = p ?? 0;
+    return Math.round(v <= 1 ? v * 100 : v);
   }
-  encoder() {
+  encoder(): string {
     const e = this.shell.media()?.encoder;
     return e ? ENCODER_SHORT[e] ?? e : 'chưa dò';
   }
-  gb() {
+  gb(): number {
     return Math.round(this.api.systemStats().memoryTotalMb / 1024);
   }
 }

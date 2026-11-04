@@ -1,7 +1,8 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
+import { DynamicEntity } from '../../core/models';
 import { OmniApiService } from '../../core/omni-api.service';
 
 @Component({
@@ -440,18 +441,18 @@ export class SeriesPage implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
-  readonly seriesList = signal<any[]>([]);
+  readonly seriesList = signal<DynamicEntity[]>([]);
   readonly selectedId = signal<string | null>(null);
-  readonly currentSeries = signal<any | null>(null);
-  readonly voices = signal<any[]>([]);
+  readonly currentSeries = signal<DynamicEntity | null>(null);
+  readonly voices = signal<DynamicEntity[]>([]);
   readonly developing = signal(false);
   readonly toastMsg = signal('');
-  readonly zoomChar = signal<any | null>(null);
+  readonly zoomChar = signal<DynamicEntity | null>(null);
 
   developCount = 3;
 
   readonly seriesModalOpen = signal(false);
-  seriesForm: any = {
+  seriesForm: DynamicEntity = {
     id: null,
     title: '',
     logline: '',
@@ -462,21 +463,21 @@ export class SeriesPage implements OnInit {
   };
 
   readonly charModalOpen = signal(false);
-  charForm: any = { id: null, name: '', role: '', appearance: '', promptEn: '' };
+  charForm: DynamicEntity = { id: null, name: '', role: '', appearance: '', promptEn: '' };
 
   readonly epModalOpen = signal(false);
-  epForm: any = { id: null, title: '', synopsis: '' };
+  epForm: DynamicEntity = { id: null, title: '', synopsis: '' };
 
   async ngOnInit() {
     const qId = this.route.snapshot.queryParamMap.get('id');
     if (qId) this.selectedId.set(qId);
     await this.loadList();
-    const vList = await this.api.invoke<any[]>('media.voices', { provider: 'google_tts' }).catch(() => []);
+    const vList = await this.api.invoke<DynamicEntity[]>('media.voices', { provider: 'google_tts' }).catch((): DynamicEntity[] => []);
     this.voices.set(vList || []);
   }
 
   async loadList() {
-    const list = await this.api.invoke<any[]>('series.list', {});
+    const list = await this.api.invoke<DynamicEntity[]>('series.list', {});
     this.seriesList.set(list || []);
     const sel = this.selectedId() || list?.[0]?.id || null;
     if (sel) {
@@ -488,7 +489,7 @@ export class SeriesPage implements OnInit {
 
   async selectSeries(id: string) {
     this.selectedId.set(id);
-    const detail = await this.api.invoke<any>('series.get', { id });
+    const detail = await this.api.invoke<DynamicEntity>('series.get', { id });
     this.currentSeries.set(detail);
   }
 
@@ -504,7 +505,7 @@ export class SeriesPage implements OnInit {
     if (!s) return;
     this.developing.set(true);
     try {
-      const res = await this.api.invoke<any>('series.develop', {
+      const res = await this.api.invoke<DynamicEntity>('series.develop', {
         id: s.id,
         episodes: this.developCount,
       });
@@ -547,7 +548,7 @@ export class SeriesPage implements OnInit {
       this.seriesModalOpen.set(false);
       await this.loadList();
     } else {
-      const created = await this.api.invoke<any>('series.create', this.seriesForm);
+      const created = await this.api.invoke<DynamicEntity>('series.create', this.seriesForm);
       this.seriesModalOpen.set(false);
       if (created?.id) this.selectedId.set(created.id);
       await this.loadList();
@@ -562,7 +563,7 @@ export class SeriesPage implements OnInit {
     await this.loadList();
   }
 
-  openCharDialog(c: any | null) {
+  openCharDialog(c: DynamicEntity | null) {
     if (c) {
       this.charForm = {
         id: c.id,
@@ -599,7 +600,7 @@ export class SeriesPage implements OnInit {
     await this.loadList();
   }
 
-  async generateCharImage(c: any) {
+  async generateCharImage(c: DynamicEntity) {
     await this.api.invoke('series.characterImage', { id: c.id });
     this.toastMsg.set(`Đã cập nhật bảng nhân vật AI cho "${c.name}".`);
     await this.loadList();
@@ -614,7 +615,7 @@ export class SeriesPage implements OnInit {
     await this.loadList();
   }
 
-  async copyCharPrompt(c: any) {
+  async copyCharPrompt(c: DynamicEntity) {
     const text = c.promptEn || c.appearance || c.name;
     try {
       await navigator.clipboard.writeText(text);
@@ -624,7 +625,7 @@ export class SeriesPage implements OnInit {
     }
   }
 
-  openEpDialog(ep: any | null) {
+  openEpDialog(ep: DynamicEntity | null) {
     if (ep) {
       this.epForm = { id: ep.id, title: ep.title, synopsis: ep.synopsis || '' };
     } else {
@@ -650,8 +651,8 @@ export class SeriesPage implements OnInit {
     await this.loadList();
   }
 
-  async makeEpisodeFilm(ep: any) {
-    const res = await this.api.invoke<any>('series.makeFilm', { episodeId: ep.id });
+  async makeEpisodeFilm(ep: DynamicEntity) {
+    const res = await this.api.invoke<DynamicEntity>('series.makeFilm', { episodeId: ep.id });
     await this.loadList();
     if (res?.filmId) {
       this.router.navigate(['/film', res.filmId]);

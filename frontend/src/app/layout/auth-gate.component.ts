@@ -2,11 +2,11 @@ import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '
 import { OmniApiService } from '../core/omni-api.service';
 import { LoginPageComponent } from '../features/auth/login.page';
 import { IconComponent } from '../shared/icon.component';
+import { errOf } from '../shared/util';
 import { BuyPlanDialogComponent } from './buy-plan-dialog.component';
 import { ShellComponent } from './shell.component';
-import { ShellStore } from './shell.store';
+import { LicenseView, ShellStore } from './shell.store';
 import { ToasterComponent } from './toaster.component';
-import { errOf } from '../shared/util';
 
 const LIC_TITLE: Record<string, string> = {
   expired: 'Gói đã hết hạn',
@@ -67,7 +67,7 @@ const LIC_TITLE: Record<string, string> = {
     }
     @if (!shell.user()) { <omni-toaster /> }
   `,
-  styles: [`.center { display: flex; min-height: 100vh; align-items: center; justify-content: center; }`],
+  styles: [`.center { display: flex; min-height: 100vh; min-height: 100dvh; align-items: center; justify-content: center; }`],
 })
 export class AuthGateComponent {
   readonly api = inject(OmniApiService);
@@ -77,25 +77,26 @@ export class AuthGateComponent {
   constructor() {
     void this.shell.loadAuth();
     const t = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       const st = this.shell.license()?.status;
       if (st === 'checking') void this.shell.loadAuth();
       else if (this.shell.user()) void this.shell.loadLicense();
     }, 60_000);
     inject(DestroyRef).onDestroy(() => clearInterval(t));
-    (window as any).omni?.app?.onLicenseChanged?.(() => void this.shell.loadAuth());
+    window.omni?.app?.onLicenseChanged?.(() => void this.shell.loadAuth());
   }
 
-  title(s: string) {
+  title(s: string): string {
     return LIC_TITLE[s] ?? 'Chưa có license dùng được';
   }
 
-  onAuthed() {
+  onAuthed(): void {
     void this.shell.loadLicense();
   }
 
-  async recheck() {
+  async recheck(): Promise<void> {
     this.busy.set(true);
-    const r = await this.api.invokeRaw<any>('license.refresh');
+    const r = await this.api.invokeRaw<LicenseView>('license.refresh');
     this.busy.set(false);
     if (r.ok) {
       this.shell.license.set(r.data);
@@ -103,9 +104,9 @@ export class AuthGateComponent {
     } else this.api.toast('Không kiểm tra được', errOf(r), 'error');
   }
 
-  async activate() {
+  async activate(): Promise<void> {
     this.busy.set(true);
-    const r = await this.api.invokeRaw<any>('license.activate');
+    const r = await this.api.invokeRaw<LicenseView>('license.activate');
     this.busy.set(false);
     if (r.ok) this.shell.license.set(r.data);
     else this.api.toast('Không kích hoạt được', errOf(r), 'error');

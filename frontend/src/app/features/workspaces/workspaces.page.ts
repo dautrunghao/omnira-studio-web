@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
+import { DynamicEntity } from '../../core/models';
 import { OmniApiService } from '../../core/omni-api.service';
 import { ShellStore } from '../../layout/shell.store';
 import { pickFiles } from '../../shared/file-pick';
@@ -45,7 +46,7 @@ const DEFAULT_SLOTS: Slot[] = [
   { start: '19:30', end: '22:00', weight: 0.45 },
 ];
 
-function toDraft(ws: any): Draft {
+function toDraft(ws: DynamicEntity): Draft {
   return {
     name: ws.name ?? '',
     color: ws.color ?? COLORS[0],
@@ -58,7 +59,7 @@ function toDraft(ws: any): Draft {
     aiBudgetUsd: ws.aiBudgetUsd != null ? String(ws.aiBudgetUsd) : '',
     aiTokenQuota: ws.aiTokenQuota != null ? String(ws.aiTokenQuota) : '',
     watermarkPath: ws.watermarkPath ?? null,
-    watermarkPosition: ws.watermarkPosition ?? 'br',
+    watermarkPosition: (ws.watermarkPosition as Draft['watermarkPosition']) ?? 'br',
     watermarkX: ws.watermarkX ?? 0.9,
     watermarkY: ws.watermarkY ?? 0.92,
     watermarkOpacity: ws.watermarkOpacity ?? 0.85,
@@ -288,6 +289,7 @@ function toDraft(ws: any): Draft {
      .sw.on { border-color: rgb(var(--c-on-surface)); }
      input[type='color'].sw { background: none; }
      .slot { display: grid; grid-template-columns: 96px auto 96px 1fr auto auto; align-items: center; gap: 8px; }
+     @media (max-width: 640px) { .slot { display: flex; flex-wrap: wrap; } .slot input[type="time"] { width: 112px; } .slot .o-range { flex: 1 1 120px; } }
      .day-strip { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; }
      .hcell { height: 16px; border-radius: 3px; background: rgb(var(--c-tertiary)); }
      .stage { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: rgb(var(--c-surface-container-lowest)); border: 1px dashed rgb(var(--c-outline-variant)); touch-action: none; }
@@ -318,8 +320,8 @@ export class WorkspacesPageComponent {
     { v: 'budget', l: 'Ngân sách AI', i: 'dollar' },
   ];
 
-  readonly list = signal<any[]>([]);
-  readonly archived = signal<any[]>([]);
+  readonly list = signal<DynamicEntity[]>([]);
+  readonly archived = signal<DynamicEntity[]>([]);
   readonly loading = signal(true);
   readonly selId = signal<string | null>(null);
   readonly tab = signal('general');
@@ -329,7 +331,7 @@ export class WorkspacesPageComponent {
   readonly createOpen = signal(false);
   readonly archivedOpen = signal(false);
   readonly canvasNoise = signal(true);
-  readonly budget = signal<any>(null);
+  readonly budget = signal<DynamicEntity | null>(null);
   readonly drag = signal(false);
   readonly previewAspect = signal('9:16');
   /** đổi để kích hoạt computed dirty() vì draft là object thường */
@@ -338,7 +340,7 @@ export class WorkspacesPageComponent {
   private base = '';
   nw = { name: '', color: COLORS[0], description: '', brandVoice: '', tags: '', slots: true };
 
-  readonly usd = (n: any) => fmtUsd(n);
+  readonly usd = (n: number | null | undefined) => fmtUsd(n);
   readonly date = fmtDate;
   readonly sel = computed(() => this.list().find((w) => w.id === this.selId()) ?? null);
   readonly totalChannels = computed(() => this.list().reduce((s, w) => s + (w.channelCount ?? 0), 0));
@@ -346,7 +348,7 @@ export class WorkspacesPageComponent {
   readonly totalSpent = computed(() => this.list().reduce((s, w) => s + (w.aiSpentUsd ?? 0), 0));
 
   constructor() {
-    void this.api.invokeRaw('settings.budget').then((r) => r.ok && this.budget.set(r.data));
+    void this.api.invokeRaw<DynamicEntity>('settings.budget').then((r) => r.ok && this.budget.set(r.data));
     this.route.queryParamMap.subscribe((q) => q.get('new') && this.openCreate());
     effect(() => {
       this.shell.ver('workspaces');
@@ -360,10 +362,10 @@ export class WorkspacesPageComponent {
   pad(n: number) {
     return String(n).padStart(2, '0');
   }
-  platformCount(w: any, p: string): number {
+  platformCount(w: DynamicEntity, p: string): number {
     return w.platformCounts?.[p] ?? 0;
   }
-  budgetPct(w: any) {
+  budgetPct(w: DynamicEntity) {
     return w.aiBudgetUsd ? Math.min(100, ((w.aiSpentUsd ?? 0) / w.aiBudgetUsd) * 100) : 0;
   }
   defaultSlots() {
@@ -395,25 +397,25 @@ export class WorkspacesPageComponent {
   }
 
   async load() {
-    const r = await this.api.invokeRaw('workspaces.list');
+    const r = await this.api.invokeRaw<DynamicEntity[]>('workspaces.list');
     this.loading.set(false);
     if (!r.ok) return this.api.toast('Không tải được Pocket', errOf(r), 'error');
-    const l = asList(r.data);
+    const l = asList<DynamicEntity>(r.data);
     this.list.set(l);
     this.shell.workspaces.set(l);
     const cur = this.selId() ?? this.api.activeWorkspaceId() ?? l[0]?.id ?? null;
     const w = l.find((x) => x.id === cur) ?? l[0];
     if (w && (!this.selId() || !this.dirty())) this.select(w);
-    void this.api.invokeRaw('workspaces.listArchived').then((a) => a.ok && this.archived.set(asList(a.data)));
+    void this.api.invokeRaw<DynamicEntity[]>('workspaces.listArchived').then((a) => a.ok && this.archived.set(asList(a.data)));
   }
 
-  select(w: any) {
+  select(w: DynamicEntity) {
     if (this.selId() && this.selId() !== w.id && this.dirty() && !confirm('Có thay đổi chưa lưu – bỏ qua và chuyển Pocket?')) return;
     this.selId.set(w.id);
     this.reset(w);
   }
 
-  reset(w: any) {
+  reset(w: DynamicEntity) {
     this.d = toDraft(w);
     this.base = JSON.stringify(this.d);
     this.tick.update((n) => n + 1);
@@ -438,7 +440,7 @@ export class WorkspacesPageComponent {
 
   async learnHours(workspaceId: string) {
     this.learning.set(true);
-    const r = await this.api.invokeRaw<any>('insights.bestHours', { workspaceId });
+    const r = await this.api.invokeRaw<DynamicEntity>('insights.bestHours', { workspaceId });
     this.learning.set(false);
     if (!r.ok) return this.api.toast('Chưa học được giờ vàng', errOf(r), 'error');
     const slots = asList<Slot>(r.data?.suggested ?? r.data?.slots ?? r.data);
@@ -476,7 +478,7 @@ export class WorkspacesPageComponent {
     const [f] = await pickFiles({ accept: 'image/png,image/webp,image/jpeg,image/svg+xml', maxMb: 4 });
     if (!f) return;
     // Backend lưu file lên Storage và trả đường dẫn; nếu chưa hỗ trợ thì dùng tạm dataURL để xem trước
-    const r = await this.api.invokeRaw<any>('system.pickImage', { files: [{ name: f.name, dataUrl: f.dataUrl }], purpose: 'watermark' });
+    const r = await this.api.invokeRaw<DynamicEntity>('system.pickImage', { files: [{ name: f.name, dataUrl: f.dataUrl }], purpose: 'watermark' });
     const path = r.ok ? (Array.isArray(r.data) ? r.data[0] : r.data?.path ?? r.data) : null;
     this.d.watermarkPath = typeof path === 'string' && path ? path : f.dataUrl;
     this.tick.update((n) => n + 1);
@@ -530,7 +532,7 @@ export class WorkspacesPageComponent {
 
   async create() {
     this.saving.set(true);
-    const r = await this.api.invokeRaw<any>('workspaces.create', {
+    const r = await this.api.invokeRaw<DynamicEntity>('workspaces.create', {
       name: this.nw.name.trim(),
       color: this.nw.color,
       description: this.nw.description || null,
@@ -546,7 +548,7 @@ export class WorkspacesPageComponent {
     await this.load();
   }
 
-  async archive(w: any) {
+  async archive(w: DynamicEntity) {
     if (!confirm(`Lưu trữ Pocket “${w.name}”? Pocket sẽ ẩn khỏi mọi danh sách, có thể khôi phục sau.`)) return;
     const r = await this.api.invokeRaw('workspaces.archive', { id: w.id });
     if (!r.ok) return this.api.toast('Không lưu trữ được', errOf(r), 'error');
@@ -558,7 +560,7 @@ export class WorkspacesPageComponent {
 
   async openArchived() {
     this.archivedOpen.set(true);
-    const a = await this.api.invokeRaw('workspaces.listArchived');
+    const a = await this.api.invokeRaw<DynamicEntity[]>('workspaces.listArchived');
     if (a.ok) this.archived.set(asList(a.data));
   }
 
@@ -580,7 +582,7 @@ export class WorkspacesPageComponent {
 
   async exportCfg() {
     this.exporting.set(true);
-    const r = await this.api.invokeRaw<any>('workspaces.export');
+    const r = await this.api.invokeRaw<DynamicEntity>('workspaces.export');
     this.exporting.set(false);
     if (!r.ok) return this.api.toast('Không xuất được cấu hình', errOf(r), 'error');
     const data = r.data && typeof r.data === 'object' && !('path' in r.data) ? r.data : { exportedAt: new Date().toISOString(), workspaces: this.list() };

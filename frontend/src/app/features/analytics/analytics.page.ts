@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { DynamicEntity } from '../../core/models';
 import { OmniApiService } from '../../core/omni-api.service';
 import { ShellStore } from '../../layout/shell.store';
 import { IconComponent } from '../../shared/icon.component';
@@ -30,7 +31,7 @@ const GOAL_METRICS: { v: string; l: string; unit: string; hint: string }[] = [
           <p class="o-page-desc">Hiệu quả bài đã đăng theo định dạng, độ dài và kênh · mục tiêu kênh · khung giờ tốt nhất học từ số liệu thật</p>
         </div>
         <div class="o-page-actions">
-          <select class="o-select" style="width: 240px" [ngModel]="channelId()" (ngModelChange)="channelId.set($event || null)">
+          <select class="o-select" style="width: min(240px, 100%)" [ngModel]="channelId()" (ngModelChange)="channelId.set($event || null)">
             <option [ngValue]="null">Mọi kênh</option>
             @for (c of channels(); track c.id) { <option [value]="c.id">{{ meta(c.platform).short }} · {{ c.name }}</option> }
           </select>
@@ -213,21 +214,21 @@ export class AnalyticsPageComponent {
   readonly channelId = signal<string | null>(null);
   readonly metric = signal<'views' | 'engagements'>('views');
   readonly table = signal(false);
-  readonly ov = signal<any>(null);
-  readonly summary = signal<any>(null);
-  readonly best = signal<any>(null);
-  readonly goals = signal<any[]>([]);
-  readonly channels = signal<any[]>([]);
-  readonly top = signal<any[]>([]);
-  readonly lastSync = signal<any>(null);
+  readonly ov = signal<DynamicEntity | null>(null);
+  readonly summary = signal<DynamicEntity | null>(null);
+  readonly best = signal<DynamicEntity | null>(null);
+  readonly goals = signal<DynamicEntity[]>([]);
+  readonly channels = signal<DynamicEntity[]>([]);
+  readonly top = signal<DynamicEntity[]>([]);
+  readonly lastSync = signal<DynamicEntity | null>(null);
   readonly syncing = signal(false);
   readonly busy = signal(false);
   readonly goalOpen = signal(false);
-  goal: any = { id: undefined, channelId: '', metric: 'followers', target: 10000, label: '' };
+  goal: DynamicEntity = { id: undefined, channelId: '', metric: 'followers', target: 10000, label: '' };
 
   readonly compact = fmtCompact;
   readonly int = fmtInt;
-  readonly pct = (n: any, d = 0) => fmtPct(n, d);
+  readonly pct = (n: number | null | undefined, d = 0) => fmtPct(n, d);
   readonly spct = fmtSignedPct;
   readonly rel = fmtRelative;
   readonly dt = fmtDateTime;
@@ -243,7 +244,7 @@ export class AnalyticsPageComponent {
   });
   readonly seriesDays = computed(() => asList(this.summary()?.reach?.series).length);
   readonly chart = computed(() => {
-    const pts = asList<any>(this.summary()?.reach?.series);
+    const pts = asList<DynamicEntity>(this.summary()?.reach?.series);
     const key = this.metric();
     const series: ChartSeries[] =
       key === 'views'
@@ -251,10 +252,10 @@ export class AnalyticsPageComponent {
         : [{ key: 'eng', label: 'Tương tác', color: 'rgb(var(--c-tertiary))', values: pts.map((d) => d.engagements ?? 0) }];
     return { x: pts.map((p) => p.day), series };
   });
-  readonly maxFmt = computed(() => Math.max(1, ...asList<any>(this.ov()?.byFormat).map((g) => g.avgEngagements ?? 0)));
-  readonly maxLen = computed(() => Math.max(1, ...asList<any>(this.ov()?.byLength).map((g) => g.avgViews ?? 0)));
-  readonly maxHour = computed(() => Math.max(0.01, ...asList<any>(this.best()?.byHour).map((h) => h.score ?? 0)));
-  private readonly topHours = computed(() => new Set(asList<any>(this.best()?.byHour).filter((h) => h.posts).sort((a, b) => b.score - a.score).slice(0, 3).map((h) => h.hour)));
+  readonly maxFmt = computed(() => Math.max(1, ...asList<DynamicEntity>(this.ov()?.byFormat).map((g) => g.avgEngagements ?? 0)));
+  readonly maxLen = computed(() => Math.max(1, ...asList<DynamicEntity>(this.ov()?.byLength).map((g) => g.avgViews ?? 0)));
+  readonly maxHour = computed(() => Math.max(0.01, ...asList<DynamicEntity>(this.best()?.byHour).map((h) => h.score ?? 0)));
+  private readonly topHours = computed(() => new Set(asList<DynamicEntity>(this.best()?.byHour).filter((h) => h.posts).sort((a, b) => b.score - a.score).slice(0, 3).map((h) => h.hour)));
   readonly channelRows = computed(() => {
     const m = new Map(this.top().map((t) => [t.id, t]));
     return this.channels().map((c) => ({ ...c, ...(m.get(c.id) ?? {}) })).sort((a, b) => (b.views30d ?? 0) - (a.views30d ?? 0));
@@ -292,10 +293,10 @@ export class AnalyticsPageComponent {
   channelName(id: string) {
     return this.channels().find((c) => c.id === id)?.name ?? '';
   }
-  progress(g: any) {
+  progress(g: DynamicEntity) {
     return g.progress ?? (g.target ? Math.min(100, Math.round(((g.current ?? 0) / g.target) * 1000) / 10) : 0);
   }
-  postsOf(k: string): any[] {
+  postsOf(k: string): DynamicEntity[] {
     return asList(this.ov()?.[k]);
   }
 
@@ -315,15 +316,15 @@ export class AnalyticsPageComponent {
     this.ov.set(ov.ok ? ov.data : null);
     this.summary.set(sum.ok ? sum.data : null);
     this.best.set(best.ok ? best.data : null);
-    this.goals.set(asList(goals.ok ? goals.data : []).map((x: any) => (x.goal ? { ...x.goal, ...x } : x)));
-    this.channels.set(asList(ch.ok ? ch.data : []).map((x: any) => x.channel ?? x));
+    this.goals.set(asList(goals.ok ? goals.data : []).map((x: DynamicEntity) => (x.goal ? { ...x.goal, ...x } : x)));
+    this.channels.set(asList(ch.ok ? ch.data : []).map((x: DynamicEntity) => x.channel ?? x));
     this.top.set(asList(top.ok ? top.data : []));
     this.lastSync.set(ls.ok ? ls.data : null);
   }
 
   async sync() {
     this.syncing.set(true);
-    const r = await this.api.invokeRaw<any>('insights.sync');
+    const r = await this.api.invokeRaw<DynamicEntity>('insights.sync');
     this.syncing.set(false);
     if (!r.ok) return this.api.toast('Đồng bộ thất bại', errOf(r), 'error');
     this.api.toast(`Đã đồng bộ số liệu ${r.data?.channels ?? ''} kênh`, undefined, 'success');
@@ -334,7 +335,7 @@ export class AnalyticsPageComponent {
 
   async applyHours() {
     const ws = this.shell.activeWorkspace();
-    const sug = asList<any>(this.best()?.suggested);
+    const sug = asList<DynamicEntity>(this.best()?.suggested);
     if (!ws || !sug.length) return;
     if (!confirm(`Thay khung giờ vàng của Pocket “${ws.name}” bằng ${sug.map((s) => s.start + '–' + s.end).join(', ')}?`)) return;
     const r = await this.api.invokeRaw('workspaces.update', { id: ws.id, patch: { goldenHours: sug.map((s) => ({ start: s.start, end: s.end, weight: s.weight })) } });
@@ -344,7 +345,7 @@ export class AnalyticsPageComponent {
     this.shell.bump('workspaces', 'dashboard');
   }
 
-  openGoal(g: any) {
+  openGoal(g: DynamicEntity | null) {
     this.goal = g ? { id: g.id, channelId: g.channelId, metric: g.metric, target: g.target, label: g.label ?? '' } : { id: undefined, channelId: this.channelId() ?? '', metric: 'followers', target: 10000, label: '' };
     this.goalOpen.set(true);
   }
@@ -359,7 +360,7 @@ export class AnalyticsPageComponent {
     await this.load();
   }
 
-  async deleteGoal(g: any) {
+  async deleteGoal(g: DynamicEntity) {
     if (!confirm('Xóa mục tiêu này?')) return;
     const r = await this.api.invokeRaw('analytics.deleteGoal', { id: g.id });
     if (!r.ok) return this.api.toast('Không xóa được', errOf(r), 'error');

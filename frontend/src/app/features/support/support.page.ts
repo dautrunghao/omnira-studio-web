@@ -1,6 +1,7 @@
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DynamicEntity } from '../../core/models';
 import { OmniApiService } from '../../core/omni-api.service';
 
 @Component({
@@ -151,7 +152,7 @@ import { OmniApiService } from '../../core/omni-api.service';
 export class SupportPage implements OnInit {
   private readonly api = inject(OmniApiService);
 
-  readonly tickets = signal<any[]>([]);
+  readonly tickets = signal<DynamicEntity[]>([]);
   readonly selectedId = signal<string | null>(null);
   readonly newModalOpen = signal(false);
 
@@ -171,7 +172,7 @@ export class SupportPage implements OnInit {
   }
 
   async loadTickets() {
-    const list = await this.api.invoke<any[]>('support.list', {});
+    const list = await this.api.invoke<DynamicEntity[]>('support.list', {});
     this.tickets.set(list || []);
     if (!this.selectedId() && list?.length) {
       this.selectedId.set(list[0].id);
@@ -181,7 +182,7 @@ export class SupportPage implements OnInit {
   async sendReply() {
     const t = this.activeTicket();
     if (!t || !this.replyText.trim()) return;
-    const updated = await this.api.invoke<any>('support.reply', {
+    const updated = await this.api.invoke<DynamicEntity>('support.reply', {
       id: t.id,
       body: this.replyText.trim(),
     });
@@ -193,7 +194,7 @@ export class SupportPage implements OnInit {
 
   async createTicket() {
     if (!this.newForm.subject.trim()) return;
-    const created = await this.api.invoke<any>('support.create', this.newForm);
+    const created = await this.api.invoke<DynamicEntity>('support.create', this.newForm);
     this.newForm = { type: 'support', subject: '', body: '' };
     this.newModalOpen.set(false);
     await this.loadTickets();

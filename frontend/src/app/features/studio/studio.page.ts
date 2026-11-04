@@ -2,6 +2,7 @@ import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
+import { DynamicEntity } from '../../core/models';
 import { OmniApiService } from '../../core/omni-api.service';
 
 @Component({
@@ -27,7 +28,7 @@ import { OmniApiService } from '../../core/omni-api.service';
           <select
             [ngModel]="selectedProjectId()"
             (ngModelChange)="selectProject($event)"
-            class="w-72 rounded-lg border border-overlay/[0.12] bg-surface-container-low px-3 py-1.5 text-body-sm text-on-surface">
+            class="w-full sm:w-72 max-w-full rounded-lg border border-overlay/[0.12] bg-surface-container-low px-3 py-1.5 text-body-sm text-on-surface">
             @for (p of projects(); track p.id) {
               <option [value]="p.id">{{ p.topic | slice:0:46 }} · {{ p.sceneCount || 0 }} cảnh</option>
             }
@@ -411,11 +412,11 @@ export class StudioPage implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
-  readonly projects = signal<any[]>([]);
+  readonly projects = signal<DynamicEntity[]>([]);
   readonly selectedProjectId = signal<string | null>(null);
-  readonly project = signal<any | null>(null);
-  readonly scenes = signal<any[]>([]);
-  readonly renderJobs = signal<any[]>([]);
+  readonly project = signal<DynamicEntity | null>(null);
+  readonly scenes = signal<DynamicEntity[]>([]);
+  readonly renderJobs = signal<DynamicEntity[]>([]);
   readonly activeSceneIndex = signal(0);
   readonly saveState = signal<'saved' | 'saving'>('saved');
   readonly generatingScript = signal(false);
@@ -437,7 +438,7 @@ export class StudioPage implements OnInit {
   }
 
   async loadProjects() {
-    const list = await this.api.invoke<any[]>('studio.projects', {});
+    const list = await this.api.invoke<DynamicEntity[]>('studio.projects', {});
     this.projects.set(list || []);
     const pid = this.selectedProjectId() || list?.[0]?.id || null;
     if (pid) {
@@ -450,18 +451,18 @@ export class StudioPage implements OnInit {
 
   async selectProject(id: string) {
     this.selectedProjectId.set(id);
-    const detail = await this.api.invoke<any>('studio.get', { id });
+    const detail = await this.api.invoke<DynamicEntity>('studio.get', { id });
     this.project.set(detail);
     this.scenes.set(detail?.scenes || []);
     this.renderJobs.set(detail?.jobs || []);
     this.activeSceneIndex.set(0);
   }
 
-  async saveProjectPatch(patch: any) {
+  async saveProjectPatch(patch: DynamicEntity) {
     const p = this.project();
     if (!p) return;
     this.saveState.set('saving');
-    const updated = await this.api.invoke<any>('studio.update', { id: p.id, patch });
+    const updated = await this.api.invoke<DynamicEntity>('studio.update', { id: p.id, patch });
     if (updated) this.project.set({ ...p, ...updated });
     this.saveState.set('saved');
   }
@@ -476,7 +477,7 @@ export class StudioPage implements OnInit {
   }
 
   async runTryOn() {
-    const res = await this.api.invoke<any>('studio.tryOn', { projectId: this.project()?.id });
+    const res = await this.api.invoke<DynamicEntity>('studio.tryOn', { projectId: this.project()?.id });
     if (res?.imageUrl) {
       this.toastMsg.set('Đã tạo ảnh thử đồ AI (Virtual Try-On) và đồng bộ vào cảnh đang chọn!');
     }
@@ -487,7 +488,7 @@ export class StudioPage implements OnInit {
     if (!p) return;
     this.generatingScript.set(true);
     try {
-      const res = await this.api.invoke<any>('studio.generateScript', { projectId: p.id });
+      const res = await this.api.invoke<DynamicEntity>('studio.generateScript', { projectId: p.id });
       if (res?.scenes) {
         this.scenes.set(res.scenes);
         this.toastMsg.set(`AI đã sinh ${res.scenes.length} phân cảnh kịch bản hoàn chỉnh!`);
@@ -533,8 +534,8 @@ export class StudioPage implements OnInit {
   async exportPrompts() {
     const p = this.project();
     if (!p) return;
-    const res = await this.api.invoke<any>('studio.promptExport', { projectId: p.id });
-    const text = (res?.prompts || []).map((x: any) => `${x.scene}: ${x.prompt}`).join('\n');
+    const res = await this.api.invoke<DynamicEntity>('studio.promptExport', { projectId: p.id });
+    const text = (res?.prompts || []).map((x: DynamicEntity) => `${x.scene}: ${x.prompt}`).join('\n');
     try {
       await navigator.clipboard.writeText(text);
       this.toastMsg.set('Đã chép toàn bộ Prompt tiếng Anh của các phân cảnh vào clipboard!');
@@ -549,7 +550,7 @@ export class StudioPage implements OnInit {
     this.rendering.set(true);
     try {
       await this.persistScenes();
-      const job = await this.api.invoke<any>('render.start', { projectId: p.id });
+      const job = await this.api.invoke<DynamicEntity>('render.start', { projectId: p.id });
       this.renderJobs.set([job, ...this.renderJobs()]);
       this.toastMsg.set('Đã hoàn tất kết xuất MP4 1080p kèm phụ đề Karaoke!');
     } finally {
@@ -565,7 +566,7 @@ export class StudioPage implements OnInit {
   }
 
   async createNewProject() {
-    const created = await this.api.invoke<any>('studio.create', {
+    const created = await this.api.invoke<DynamicEntity>('studio.create', {
       topic: this.newTopic.trim() || 'Dự án Video AI mới',
     });
     this.newTopic = '';

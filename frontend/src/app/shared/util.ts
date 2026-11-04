@@ -1,4 +1,5 @@
-/** Tiện ích dùng chung cho các trang (định dạng số, ngày, nền tảng…). */
+/** Tiện ích dùng chung cho các trang (định dạng số, ngày, nền tảng…) – chuẩn TypeScript strict. */
+import { DynamicEntity } from '../core/models';
 
 export type Platform = 'facebook' | 'tiktok' | 'instagram' | 'youtube';
 export const PLATFORM_ORDER: Platform[] = ['facebook', 'tiktok', 'instagram', 'youtube'];
@@ -10,19 +11,22 @@ export const PLATFORM_META: Record<string, { label: string; short: string; color
   youtube: { label: 'YouTube', short: 'YT', color: 'rgb(var(--c-brand-youtube))', series: 'rgb(var(--c-series-youtube))' },
 };
 
-/** Chấp nhận mảng trực tiếp hoặc `{ items | rows | list | data }`. */
-export function asList<T = any>(v: any): T[] {
-  if (Array.isArray(v)) return v;
+/** Chấp nhận mảng trực tiếp hoặc `{ items | rows | list | data | results }`. */
+export function asList<T = DynamicEntity>(v: unknown): T[] {
+  if (Array.isArray(v)) return v as T[];
   if (v && typeof v === 'object') {
-    for (const k of ['items', 'rows', 'list', 'data', 'results']) if (Array.isArray(v[k])) return v[k];
+    const rec = v as Record<string, unknown>;
+    for (const k of ['items', 'rows', 'list', 'data', 'results']) {
+      if (Array.isArray(rec[k])) return rec[k] as T[];
+    }
   }
   return [];
 }
 
-export const fmtInt = (n: number | null | undefined) =>
+export const fmtInt = (n: number | string | null | undefined): string =>
   n == null || isNaN(+n) ? '–' : Math.round(+n).toLocaleString('vi-VN');
 
-export function fmtCompact(n: number | null | undefined): string {
+export function fmtCompact(n: number | string | null | undefined): string {
   if (n == null || isNaN(+n)) return '–';
   const v = +n;
   const abs = Math.abs(v);
@@ -32,43 +36,49 @@ export function fmtCompact(n: number | null | undefined): string {
   return String(Math.round(v));
 }
 
-export const fmtPct = (n: number | null | undefined, digits = 0) =>
+export const fmtPct = (n: number | string | null | undefined, digits = 0): string =>
   n == null || isNaN(+n) ? '–' : `${(+n).toFixed(digits)}%`;
 
-export const fmtSignedPct = (n: number | null | undefined) =>
+export const fmtSignedPct = (n: number | string | null | undefined): string =>
   n == null || isNaN(+n) ? '–' : `${+n >= 0 ? '+' : ''}${(+n).toFixed(1)}%`;
 
-export const fmtVnd = (n: number | null | undefined) =>
+export const fmtVnd = (n: number | string | null | undefined): string =>
   n == null || isNaN(+n) ? '–' : `${Math.round(+n).toLocaleString('vi-VN')}₫`;
 
-export const fmtUsd = (n: number | null | undefined, d = 2) =>
+export const fmtUsd = (n: number | string | null | undefined, d = 2): string =>
   n == null || isNaN(+n) ? '–' : `$${(+n).toFixed(d)}`;
 
-export function toDate(v: any): Date | null {
+export function toDate(v: unknown): Date | null {
   if (v == null || v === '') return null;
   if (v instanceof Date) return v;
-  if (typeof v === 'object' && typeof v._seconds === 'number') return new Date(v._seconds * 1000);
-  if (typeof v === 'object' && typeof v.seconds === 'number') return new Date(v.seconds * 1000);
-  const d = new Date(typeof v === 'string' && /^\d+$/.test(v) ? +v : v);
-  return isNaN(d.getTime()) ? null : d;
+  if (typeof v === 'object') {
+    const rec = v as { _seconds?: number; seconds?: number };
+    if (typeof rec._seconds === 'number') return new Date(rec._seconds * 1000);
+    if (typeof rec.seconds === 'number') return new Date(rec.seconds * 1000);
+  }
+  if (typeof v === 'number' || typeof v === 'string') {
+    const d = new Date(typeof v === 'string' && /^\d+$/.test(v) ? +v : v);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
 }
 
-export function fmtDateTime(v: any): string {
+export function fmtDateTime(v: unknown): string {
   const d = toDate(v);
   return d ? d.toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '–';
 }
 
-export function fmtDate(v: any): string {
+export function fmtDate(v: unknown): string {
   const d = toDate(v);
   return d ? d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '–';
 }
 
-export function fmtTime(v: any): string {
+export function fmtTime(v: unknown): string {
   const d = toDate(v);
   return d ? d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '–';
 }
 
-export function fmtRelative(v: any): string {
+export function fmtRelative(v: unknown): string {
   const d = toDate(v);
   if (!d) return '–';
   const diff = d.getTime() - Date.now();
@@ -91,7 +101,7 @@ export function dayKey(d: Date): string {
 }
 
 /** Giá trị cho <input type="datetime-local"> */
-export function toLocalInput(v: any): string {
+export function toLocalInput(v: unknown): string {
   const d = toDate(v) ?? new Date();
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
@@ -110,7 +120,7 @@ export function healthTone(h: string | null | undefined): 'success' | 'warning' 
   return 'neutral';
 }
 
-export function downloadText(filename: string, text: string, mime = 'text/plain;charset=utf-8') {
+export function downloadText(filename: string, text: string, mime = 'text/plain;charset=utf-8'): void {
   const blob = new Blob([text], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -120,12 +130,12 @@ export function downloadText(filename: string, text: string, mime = 'text/plain;
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function toCsv(rows: Record<string, any>[], headers: { key: string; label: string }[]): string {
-  const esc = (v: any) => {
+export function toCsv(rows: Record<string, unknown>[], headers: { key: string; label: string }[]): string {
+  const esc = (v: unknown) => {
     const s = v == null ? '' : String(v);
     return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  return '﻿' + [headers.map((h) => esc(h.label)).join(','), ...rows.map((r) => headers.map((h) => esc(r[h.key])).join(','))].join('\n');
+  return '\uFEFF' + [headers.map((h) => esc(h.label)).join(','), ...rows.map((r) => headers.map((h) => esc(r[h.key])).join(','))].join('\n');
 }
 
 /** Đọc file thành dataURL (thay cho hộp thoại chọn file của bản desktop). */
@@ -145,5 +155,16 @@ export const splitTags = (s: string): string[] =>
     .filter(Boolean)
     .map((t) => (t.startsWith('#') ? t : `#${t}`));
 
-/** Thông điệp lỗi của ApiResult (tsconfig không strict nên không thu hẹp union được). */
-export const errOf = (r: any): string => r?.error?.message ?? 'Lỗi không xác định';
+/** Trích xuất thông điệp lỗi từ kết quả gọi API. */
+export const errOf = (r: unknown): string => {
+  if (r && typeof r === 'object' && 'error' in r) {
+    const err = (r as { error?: { message?: string } }).error;
+    if (err?.message) return err.message;
+  }
+  return 'Lỗi không xác định';
+};
+
+/** Helper đọc giá trị từ sự kiện input/change an toàn kiểu. */
+export const inputVal = (e: Event): string => (e.target as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement)?.value ?? '';
+export const inputChecked = (e: Event): boolean => Boolean((e.target as HTMLInputElement)?.checked);
+export const inputFiles = (e: Event): FileList | null => (e.target as HTMLInputElement)?.files ?? null;

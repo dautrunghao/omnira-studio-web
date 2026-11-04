@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { DynamicEntity } from '../../core/models';
 import { OmniApiService } from '../../core/omni-api.service';
 import { AuthUser, ShellStore } from '../../layout/shell.store';
 import { IconComponent } from '../../shared/icon.component';
@@ -130,7 +131,7 @@ export class LoginPageComponent {
     this.step.set(s);
   }
 
-  private async run<T>(endpoint: string, input: any): Promise<T | null> {
+  private async run<T>(endpoint: string, input: unknown): Promise<T | null> {
     this.busy.set(true);
     this.error.set(null);
     const r = await this.api.invokeRaw<T>(endpoint, input);
@@ -142,8 +143,8 @@ export class LoginPageComponent {
     return r.data;
   }
 
-  private done(res: any) {
-    const user: AuthUser = res?.user ?? res;
+  private done(res: DynamicEntity) {
+    const user: AuthUser = (res?.['user'] as AuthUser) ?? (res as unknown as AuthUser);
     if (!user?.email) {
       void this.shell.loadAuth();
       return;
@@ -156,13 +157,13 @@ export class LoginPageComponent {
 
   async login() {
     if (!this.f.email || !this.f.password) return this.error.set('Nhập email và mật khẩu');
-    const res = await this.run('auth.login', { email: this.f.email.trim(), password: this.f.password, remember: this.f.remember });
+    const res = await this.run<DynamicEntity>('auth.login', { email: this.f.email.trim(), password: this.f.password, remember: this.f.remember });
     if (res) this.done(res);
   }
 
   async register() {
     if (this.f.password.length < 6) return this.error.set('Mật khẩu tối thiểu 6 ký tự');
-    const res = await this.run<any>('auth.register', {
+    const res = await this.run<DynamicEntity>('auth.register', {
       email: this.f.email.trim(),
       displayName: this.f.displayName.trim(),
       password: this.f.password,
@@ -171,35 +172,35 @@ export class LoginPageComponent {
       remember: this.f.remember,
     });
     if (!res) return;
-    if (res.user) this.done(res);
+    if (res['user']) this.done(res);
     else this.go('verify');
   }
 
   async verify() {
-    const res = await this.run('auth.registerVerify', { email: this.f.email.trim(), code: this.f.code.trim() });
+    const res = await this.run<DynamicEntity>('auth.registerVerify', { email: this.f.email.trim(), code: this.f.code.trim() });
     if (res) this.done(res);
   }
 
   async resend() {
-    const res = await this.run('auth.registerResend', { email: this.f.email.trim() });
+    const res = await this.run<DynamicEntity>('auth.registerResend', { email: this.f.email.trim() });
     if (res !== null) this.api.toast('Đã gửi lại mã xác thực', this.f.email, 'success');
   }
 
   async forgot() {
-    const res = await this.run('auth.forgotPassword', { email: this.f.email.trim() });
+    const res = await this.run<DynamicEntity>('auth.forgotPassword', { email: this.f.email.trim() });
     if (res !== null) this.go('reset');
   }
 
   async reset() {
     if (this.f.password.length < 6) return this.error.set('Mật khẩu tối thiểu 6 ký tự');
-    const res = await this.run('auth.resetPassword', { email: this.f.email.trim(), code: this.f.code.trim(), newPassword: this.f.password, remember: true });
+    const res = await this.run<DynamicEntity>('auth.resetPassword', { email: this.f.email.trim(), code: this.f.code.trim(), newPassword: this.f.password, remember: true });
     if (res) this.done(res);
   }
 
   async checkReferral() {
     const code = this.f.referralCode.trim();
     if (!code) return this.referral.set(null);
-    const r = await this.api.invokeRaw<any>('auth.checkReferral', { code });
+    const r = await this.api.invokeRaw<{ valid: boolean; name?: string; type?: string; discountPercent?: number }>('auth.checkReferral', { code });
     this.referral.set(r.ok ? r.data : { valid: false });
   }
 }

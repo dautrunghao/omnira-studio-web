@@ -1,4 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { DynamicEntity } from '../core/models';
 import { OmniApiService } from '../core/omni-api.service';
 import { asList, errOf } from '../shared/util';
 import { FeatureFlag } from './nav-items';
@@ -10,6 +11,9 @@ export interface AuthUser {
   name?: string;
   referralCode?: string;
   points?: number;
+  role?: string;
+  isSuperAdmin?: boolean;
+  permissions?: string[];
 }
 
 export interface LicenseView {
@@ -17,7 +21,7 @@ export interface LicenseView {
   usable?: boolean;
   planCode?: string;
   planName?: string;
-  expiresAt?: any;
+  expiresAt?: string | number | null;
   trial?: boolean;
   maxChannels?: number | null;
   maxDevices?: number | null;
@@ -31,15 +35,23 @@ export interface AuthState {
   license?: LicenseView | null;
   hasUsers?: boolean;
   lastEmail?: string | null;
+  authUser?: AuthUser | null;
+  licenseState?: LicenseView | null;
 }
 
 export interface WorkspaceRow {
-  id: string;
-  name: string;
+  id?: string;
+  name?: string;
   color?: string;
   icon?: string | null;
   channelCount?: number;
-  [k: string]: any;
+  goldenHours?: { start: string; end: string; weight: number }[];
+  description?: string;
+  defaultTone?: string;
+  defaultLanguage?: string;
+  hashtags?: string[];
+  brandNotes?: string;
+  [k: string]: unknown;
 }
 
 export interface NotificationItem {
@@ -49,8 +61,21 @@ export interface NotificationItem {
   message?: string;
   url?: string | null;
   unread?: boolean;
-  createdAt?: any;
+  seen?: boolean;
+  createdAt?: string | number | null;
   level?: string;
+}
+
+export interface MediaStatusView {
+  running?: {
+    id?: string;
+    topic?: string;
+    title?: string;
+    stage?: string;
+    progress?: number;
+  } | null;
+  queued?: number;
+  encoder?: string;
 }
 
 /** Trạng thái dùng chung của khung ứng dụng (thay zustand + react-query cache của bản gốc). */
@@ -66,8 +91,9 @@ export class ShellStore {
   readonly quota = signal<{ used: number; limit: number | null; blocked?: number } | null>(null);
   readonly notifications = signal<{ items: NotificationItem[]; unread: number }>({ items: [], unread: 0 });
   readonly badges = signal<Record<string, number>>({});
-  readonly media = signal<any>(null);
+  readonly media = signal<MediaStatusView | null>(null);
   readonly railCollapsed = signal<boolean>(typeof localStorage !== 'undefined' && localStorage.getItem('omni.rail') === '1');
+  readonly mobileNavOpen = signal<boolean>(false);
   readonly buyPlanCode = signal<string | null>(null);
 
   /** Bộ đếm phiên bản để các trang tự tải lại khi dữ liệu liên quan đổi (≈ invalidateQueries). */
@@ -83,7 +109,7 @@ export class ShellStore {
     return new Set(lic.features);
   });
 
-  hasFeature(f?: FeatureFlag | string | null) {
+  hasFeature(f?: FeatureFlag | string | null): boolean {
     return !f || this.features().has(f);
   }
 
@@ -93,24 +119,37 @@ export class ShellStore {
     return ['active', 'trial', 'grace', 'offline'].includes(lic.status);
   }
 
-  bump(...keys: string[]) {
+  bump(...keys: string[]): void {
     this.version.update((v) => {
       const n = { ...v };
       for (const k of keys) n[k] = (n[k] ?? 0) + 1;
       return n;
     });
   }
-  ver(key: string) {
+
+  ver(key: string): number {
     return this.version()[key] ?? 0;
   }
 
-  toggleRail() {
+  toggleRail(): void {
     const next = !this.railCollapsed();
     this.railCollapsed.set(next);
-    localStorage.setItem('omni.rail', next ? '1' : '0');
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('omni.rail', next ? '1' : '0');
+    }
   }
 
-  async loadAuth() {
+  toggleMobileNav(): void {
+    this.mobileNavOpen.update((v) => !v);
+  }
+
+  closeMobileNav(): void {
+    if (this.mobileNavOpen()) {
+      this.mobileNavOpen.set(false);
+    }
+  }
+
+  async loadAuth(): Promise<void> {
     this.authLoading.set(true);
     const r = await this.api.invokeRaw<AuthState>('auth.state');
     this.authLoading.set(false);
@@ -119,12 +158,10 @@ export class ShellStore {
       return;
     }
     this.authError.set(null);
-    const st = r.data ?? { user: null };
-    // Tương thích seed backend: { authUser, licenseState }
-    const anyst = st as any;
+    const st: AuthState = r.data ?? { user: null };
     const norm: AuthState = {
-      user: st.user ?? anyst.authUser ?? null,
-      license: st.license ?? anyst.licenseState ?? null,
+      user: st.user ?? st.authUser ?? null,
+      license: st.license ?? st.licenseState ?? null,
       hasUsers: st.hasUsers,
       lastEmail: st.lastEmail ?? null,
     };
@@ -132,17 +169,17 @@ export class ShellStore {
     if (norm.license) this.license.set(norm.license);
   }
 
-  setUser(user: AuthUser | null) {
-    this.auth.update((s) => ({ ...(s ?? {}), user }));
+  setUser(user: AuthUser | null): void {
+    this.auth.update((s) => ({ ...(s ?? { user: null }), user }));
   }
 
-  async loadLicense() {
+  async loadLicense(): Promise<void> {
     const r = await this.api.invokeRaw<LicenseView>('license.state');
     if (r.ok && r.data) this.license.set(r.data);
   }
 
-  async loadWorkspaces() {
-    const r = await this.api.invokeRaw('workspaces.list');
+  async loadWorkspaces(): Promise<void> {
+    const r = await this.api.invokeRaw<WorkspaceRow[]>('workspaces.list');
     if (r.ok) {
       const list = asList<WorkspaceRow>(r.data);
       this.workspaces.set(list);
@@ -151,32 +188,35 @@ export class ShellStore {
     }
   }
 
-  async loadQuota() {
-    const r = await this.api.invokeRaw('channels.quota');
+  async loadQuota(): Promise<void> {
+    const r = await this.api.invokeRaw<{ used: number; limit: number | null; blocked?: number }>('channels.quota');
     if (r.ok) this.quota.set(r.data ?? null);
   }
 
   async loadNotifications(): Promise<NotificationItem[]> {
-    const r = await this.api.invokeRaw('cloud.notifications');
+    const r = await this.api.invokeRaw<DynamicEntity>('cloud.notifications');
     if (!r.ok) return [];
-    const d: any = r.data ?? {};
-    const items = asList<any>(d.items ?? d).map((n) => ({ ...n, unread: n.unread ?? (n.seen === undefined ? false : !n.seen) })) as NotificationItem[];
+    const d: DynamicEntity = r.data ?? {};
+    const items = asList<NotificationItem>(d.items ?? d).map((n) => ({
+      ...n,
+      unread: n.unread ?? (n.seen === undefined ? false : !n.seen),
+    }));
     const prev = new Set(this.notifications().items.map((n) => n.id));
     const unread = typeof d.unread === 'number' ? d.unread : items.filter((n) => n.unread).length;
     this.notifications.set({ items, unread });
     return items.filter((n) => n.unread && !prev.has(n.id));
   }
 
-  async loadBadges() {
+  async loadBadges(): Promise<void> {
     const wsId = this.api.activeWorkspaceId();
     const [inbox, alerts, media] = await Promise.all([
-      this.api.invokeRaw('inbox.stats', { workspaceId: wsId }),
-      this.api.invokeRaw('alerts.open'),
-      this.api.invokeRaw('media.status'),
+      this.api.invokeRaw<DynamicEntity>('inbox.stats', { workspaceId: wsId }),
+      this.api.invokeRaw<unknown[]>('alerts.open'),
+      this.api.invokeRaw<MediaStatusView>('media.status'),
     ]);
     const b: Record<string, number> = { ...this.badges() };
     if (inbox.ok) {
-      const d: any = inbox.data ?? {};
+      const d: DynamicEntity = inbox.data ?? {};
       b['inbox'] = d.unread ?? d.unreadCount ?? d.totalUnread ?? 0;
     }
     if (alerts.ok) b['alerts'] = asList(alerts.data).length;
@@ -184,7 +224,7 @@ export class ShellStore {
     this.badges.set(b);
   }
 
-  async logout() {
+  async logout(): Promise<void> {
     await this.api.invokeRaw('auth.logout');
     this.setUser(null);
   }

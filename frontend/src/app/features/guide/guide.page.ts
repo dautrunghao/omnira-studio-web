@@ -1,6 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
+import { DynamicEntity } from '../../core/models';
 import { OmniApiService } from '../../core/omni-api.service';
 
 @Component({
@@ -77,7 +78,7 @@ export class GuidePage implements OnInit {
   private readonly api = inject(OmniApiService);
   private readonly router = inject(Router);
 
-  readonly channels = signal<any[]>([]);
+  readonly channels = signal<DynamicEntity[]>([]);
 
   readonly guides = [
     {
@@ -141,7 +142,7 @@ export class GuidePage implements OnInit {
   ];
 
   async ngOnInit() {
-    const list = await this.api.invoke<any[]>('channels.list', {}).catch(() => []);
+    const list = await this.api.invoke<DynamicEntity[]>('channels.list', {}).catch((): DynamicEntity[] => []);
     this.channels.set(list || []);
   }
 
