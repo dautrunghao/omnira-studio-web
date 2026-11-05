@@ -3,69 +3,64 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { DynamicEntity } from '../../core/models';
 import { OmniApiService } from '../../core/omni-api.service';
+import { IconComponent } from '../../shared/icon.component';
 
 @Component({
   selector: 'app-guide-page',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, IconComponent],
   template: `
-    <div class="o-page flex flex-col gap-space-md">
+    <div class="o-page">
       <!-- Header -->
-      <div class="flex flex-wrap items-center justify-between gap-space-md rounded-2xl border border-overlay/[0.08] bg-surface-container p-space-md">
-        <div>
-          <h1 class="flex items-center gap-space-sm text-headline-md font-semibold text-on-surface">
-            <span class="text-secondary">📖</span> Hướng dẫn kết nối & Vận hành Omnira Studio
-          </h1>
-          <p class="mt-0.5 text-body-sm text-on-surface-variant">
+      <div class="o-page-head">
+        <div class="o-page-ico"><o-icon name="book" [size]="21" /></div>
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <h1 class="o-page-title">Hướng dẫn kết nối & Vận hành Omnira Studio</h1>
+            <span class="o-badge pill primary">Tài liệu chuẩn</span>
+          </div>
+          <p class="o-page-desc">
             Quy trình từng bước để kết nối tài khoản mạng xã hội, thiết lập khóa AI BYOK và vận hành dây chuyền sản xuất tự động.
           </p>
         </div>
 
-        <button
-          type="button"
-          (click)="goAccounts()"
-          class="rounded-xl bg-primary px-4 py-2 text-label-md font-semibold text-on-primary hover:opacity-90">
-          👥 Mở Quản lý Tài khoản & Kênh →
-        </button>
+        <div class="o-page-actions">
+          <button type="button" class="o-btn o-btn-primary" (click)="goAccounts()">
+            <o-icon name="users" [size]="15" /> Mở Quản lý Tài khoản & Kênh
+          </button>
+        </div>
       </div>
 
       <!-- Platform Connection Guides -->
-      <div class="grid grid-cols-1 gap-space-md lg:grid-cols-2">
+      <div class="o-two even">
         @for (g of guides; track g.platform) {
-          <div class="flex flex-col justify-between gap-space-md rounded-2xl border border-overlay/[0.08] bg-surface-container p-space-md">
-            <div class="flex flex-col gap-3">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2.5">
-                  <span class="text-2xl">{{ g.icon }}</span>
-                  <div>
-                    <h2 class="text-title-md font-bold text-on-surface">{{ g.title }}</h2>
-                    <span class="text-xs text-outline">{{ g.subtitle }}</span>
-                  </div>
+          <div class="o-card flex flex-col justify-between">
+            <div>
+              <div class="o-card-head">
+                <div class="o-card-ico"><o-icon [name]="g.icon" [size]="18" /></div>
+                <div class="min-w-0 flex-1">
+                  <div class="o-card-title">{{ g.title }}</div>
+                  <div class="o-card-sub">{{ g.subtitle }}</div>
                 </div>
-                <span class="rounded-full bg-tertiary/15 px-3 py-0.5 text-xs font-semibold text-tertiary">
-                  ✓ Đã kết nối {{ countByPlatform(g.platform) }} kênh
+                <span class="o-badge pill success">
+                  <o-icon name="check" [size]="12" /> Đã kết nối {{ countByPlatform(g.platform) }} kênh
                 </span>
               </div>
 
-              <ol class="flex flex-col gap-2 rounded-xl bg-surface-container-lowest p-3.5 text-body-sm text-on-surface-variant border border-overlay/[0.06]">
+              <div class="o-card-body flex flex-col gap-2.5">
                 @for (step of g.steps; track step; let i = $index) {
-                  <li class="flex items-start gap-2.5">
-                    <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-secondary/20 font-mono text-xs font-bold text-secondary">
-                      {{ i + 1 }}
-                    </span>
-                    <span>{{ step }}</span>
-                  </li>
+                  <div class="o-tile flex items-start gap-3">
+                    <span class="o-badge mono primary">{{ i + 1 }}</span>
+                    <span class="text-body-sm">{{ step }}</span>
+                  </div>
                 }
-              </ol>
+              </div>
             </div>
 
-            <div class="flex items-center justify-between border-t border-overlay/[0.06] pt-3">
-              <span class="text-xs text-outline">{{ g.note }}</span>
-              <button
-                type="button"
-                (click)="goRoute(g.actionRoute)"
-                class="rounded-lg bg-surface-container-high px-3 py-1.5 text-label-sm font-semibold text-on-surface hover:bg-primary hover:text-on-primary transition">
-                {{ g.actionLabel }} →
+            <div class="px-4 py-3 border-t border-overlay/[0.06] flex flex-wrap items-center justify-between gap-2">
+              <span class="text-label-sm o-muted">{{ g.note }}</span>
+              <button type="button" class="o-btn o-btn-sm" (click)="goRoute(g.actionRoute)">
+                {{ g.actionLabel }} <o-icon name="arrowright" [size]="13" />
               </button>
             </div>
           </div>
@@ -83,7 +78,7 @@ export class GuidePage implements OnInit {
   readonly guides = [
     {
       platform: 'facebook',
-      icon: '📘',
+      icon: 'facebook',
       title: 'Facebook Fanpage & Reels',
       subtitle: 'Meta Graph API v21.0 + Browser Profile',
       steps: [
@@ -98,7 +93,7 @@ export class GuidePage implements OnInit {
     },
     {
       platform: 'tiktok',
-      icon: '🎵',
+      icon: 'tiktok',
       title: 'TikTok Creator & TikTok Shop',
       subtitle: 'TikTok Content Posting API + Antidetect Profile',
       steps: [
@@ -113,7 +108,7 @@ export class GuidePage implements OnInit {
     },
     {
       platform: 'instagram',
-      icon: '📸',
+      icon: 'instagram',
       title: 'Instagram Business & Creator',
       subtitle: 'Instagram Graph API (Reels & Carousel)',
       steps: [
@@ -127,7 +122,7 @@ export class GuidePage implements OnInit {
     },
     {
       platform: 'youtube',
-      icon: '▶️',
+      icon: 'youtube',
       title: 'YouTube Shorts & Kênh Dài',
       subtitle: 'YouTube Data API v3 (Google OAuth2)',
       steps: [

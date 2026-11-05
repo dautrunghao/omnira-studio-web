@@ -3,31 +3,39 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DynamicEntity } from '../../core/models';
 import { OmniApiService } from '../../core/omni-api.service';
+import { IconComponent } from '../../shared/icon.component';
 
 @Component({
   selector: 'app-billing-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, IconComponent],
   template: `
-    <div class="o-page flex flex-col gap-space-md">
-      <!-- Header & Current License Banner -->
-      <div class="flex flex-wrap items-center justify-between gap-space-md rounded-2xl border border-overlay/[0.08] bg-surface-container p-space-md">
-        <div>
-          <h1 class="flex items-center gap-space-sm text-headline-md font-semibold text-on-surface">
-            <span class="text-secondary">💳</span> Gói & Thanh toán
-          </h1>
-          <p class="mt-0.5 text-body-sm text-on-surface-variant">
+    <div class="o-page">
+      <!-- Page Header -->
+      <div class="o-page-head">
+        <div class="o-page-ico"><o-icon name="card" [size]="21" /></div>
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <h1 class="o-page-title">Gói & Thanh toán</h1>
+            <span class="o-badge pill success">VietQR Tự động</span>
+          </div>
+          <p class="o-page-desc">
             Quản lý bản quyền Omnira Studio, nâng cấp gói cước bằng mã QR ngân hàng tự động, quản lý thiết bị và nhận thưởng giới thiệu.
           </p>
         </div>
 
-        @if (license()) {
-          <div class="flex items-center gap-3 rounded-xl border border-tertiary/30 bg-tertiary/10 px-4 py-2.5">
-            <div>
-              <div class="text-xs uppercase tracking-wider text-tertiary font-semibold">Gói hiện tại đang kích hoạt</div>
-              <div class="text-title-sm font-bold text-on-surface">{{ license().planName || 'Omnira Studio Pro' }}</div>
-              <div class="font-mono text-xs text-on-surface-variant">
-                Hạn dùng: {{ license().expiresAt | date:'dd/MM/yyyy' }} · Tối đa {{ license().maxDevices || 5 }} thiết bị
+        @if (license(); as lic) {
+          <div class="o-page-actions">
+            <div class="o-tile flex items-center gap-3">
+              <span class="o-avatar"><o-icon name="award" [size]="18" class="o-tertiary" /></span>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="font-semibold text-label-lg">{{ lic.planName || 'Omnira Studio Pro' }}</span>
+                  <span class="o-badge success">Đang hoạt động</span>
+                </div>
+                <div class="font-mono text-label-sm o-muted">
+                  Hạn dùng: {{ lic.expiresAt | date:'dd/MM/yyyy' }} · Tối đa {{ lic.maxDevices || 5 }} thiết bị
+                </div>
               </div>
             </div>
           </div>
@@ -36,58 +44,60 @@ import { OmniApiService } from '../../core/omni-api.service';
 
       <!-- Promotions Banner -->
       @for (promo of promotions(); track promo.id) {
-        <div class="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-secondary/40 bg-secondary/10 px-space-md py-3">
-          <div class="flex items-center gap-2 text-body-sm text-on-surface">
-            <span class="text-lg">🎁</span>
-            <strong>{{ promo.title }}</strong>
-            <span class="rounded bg-secondary px-2 py-0.5 font-mono text-xs font-bold text-surface">Mã: {{ promo.code }}</span>
+        <div class="o-banner primary justify-between">
+          <div class="flex flex-wrap items-center gap-2.5">
+            <o-icon name="gift" [size]="17" class="o-primary" />
+            <strong class="text-label-lg">{{ promo.title }}</strong>
+            <span class="o-badge mono primary">Mã: {{ promo.code }}</span>
           </div>
-          <span class="text-xs text-on-surface-variant">Giảm ngay {{ promo.discountPct }}% khi thanh toán trực tuyến</span>
+          <span class="text-label-sm o-muted">Giảm ngay {{ promo.discountPct }}% khi thanh toán trực tuyến</span>
         </div>
       }
 
       @if (toastMsg()) {
-        <div class="rounded-xl bg-tertiary/15 px-4 py-2 text-label-md text-tertiary flex items-center justify-between">
-          <span>{{ toastMsg() }}</span>
-          <button type="button" (click)="toastMsg.set('')" class="text-xs underline">Đóng</button>
+        <div class="o-banner success justify-between">
+          <div class="flex items-center gap-2">
+            <o-icon name="checkcheck" [size]="16" class="o-tertiary" />
+            <span class="font-medium">{{ toastMsg() }}</span>
+          </div>
+          <button type="button" class="o-btn o-btn-ghost o-btn-sm" (click)="toastMsg.set('')">Đóng</button>
         </div>
       }
 
       <!-- Pricing Plans Grid -->
-      <div class="grid grid-cols-1 gap-space-md lg:grid-cols-3">
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
         @for (p of plans(); track p.code) {
           <div
-            class="relative flex flex-col justify-between rounded-2xl border p-space-lg transition"
-            [ngClass]="p.code === 'STUDIO_PRO' ? 'border-secondary bg-surface-container-high shadow-xl' : 'border-overlay/[0.08] bg-surface-container'">
-            @if (p.badge) {
-              <span
-                class="absolute right-4 top-4 rounded-full px-3 py-0.5 text-label-sm font-semibold"
-                [ngClass]="p.code === 'STUDIO_PRO' ? 'bg-secondary text-surface' : 'bg-primary/20 text-primary'">
-                {{ p.badge }}
-              </span>
-            }
-
-            <div class="flex flex-col gap-3">
-              <div>
-                <h2 class="text-title-md font-bold text-on-surface">{{ p.name }}</h2>
-                <div class="mt-2 flex items-baseline gap-2">
-                  <span class="text-headline-lg font-extrabold text-on-surface">{{ p.priceVnd | number }}đ</span>
-                  <span class="text-label-sm text-outline line-through">{{ p.originalPriceVnd | number }}đ</span>
-                  <span class="text-label-sm text-on-surface-variant">/ {{ p.periodMonths }} tháng</span>
+            class="o-card flex flex-col justify-between p-5"
+            [style.border-color]="p.code === 'STUDIO_PRO' ? 'rgb(var(--c-primary))' : ''"
+            [style.box-shadow]="p.code === 'STUDIO_PRO' ? '0 0 0 1px rgb(var(--c-primary) / 0.35), 0 14px 36px -8px rgb(var(--c-primary-container) / 0.25)' : ''">
+            <div class="flex flex-col gap-3.5">
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <h2 class="text-title-md font-bold">{{ p.name }}</h2>
+                  <div class="mt-1 flex flex-wrap items-center gap-2">
+                    <span class="o-badge mono secondary">{{ p.maxChannels }} kênh</span>
+                    <span class="o-badge mono">{{ p.maxDevices }} thiết bị</span>
+                  </div>
                 </div>
+                @if (p.badge) {
+                  <span class="o-badge pill" [class.primary]="p.code === 'STUDIO_PRO'" [class.secondary]="p.code !== 'STUDIO_PRO'">
+                    {{ p.badge }}
+                  </span>
+                }
               </div>
 
-              <div class="flex gap-2 font-mono text-xs text-secondary">
-                <span>📺 {{ p.maxChannels }} kênh</span>
-                <span>·</span>
-                <span>💻 {{ p.maxDevices }} thiết bị</span>
+              <div class="o-tile flex items-baseline gap-2">
+                <span class="text-headline-lg font-extrabold o-primary">{{ p.priceVnd | number }}đ</span>
+                <span class="text-label-sm o-faint line-through">{{ p.originalPriceVnd | number }}đ</span>
+                <span class="text-label-sm o-muted">/ {{ p.periodMonths }} tháng</span>
               </div>
 
-              <ul class="mt-2 flex flex-col gap-2 text-body-sm text-on-surface-variant">
+              <ul class="flex flex-col gap-2 text-body-sm o-muted">
                 @for (h of p.highlights; track h) {
                   <li class="flex items-start gap-2">
-                    <span class="text-tertiary">✓</span>
-                    <span>{{ h }}</span>
+                    <o-icon name="check" [size]="15" class="o-tertiary mt-0.5" />
+                    <span class="text-on-surface">{{ h }}</span>
                   </li>
                 }
               </ul>
@@ -95,146 +105,153 @@ import { OmniApiService } from '../../core/omni-api.service';
 
             <button
               type="button"
-              (click)="createOrder(p)"
-              class="mt-6 w-full rounded-xl py-2.5 text-label-md font-semibold transition"
-              [ngClass]="p.code === 'STUDIO_PRO' ? 'bg-secondary text-surface hover:opacity-90' : 'bg-primary text-on-primary hover:opacity-90'">
-              Chọn gói & Tạo mã VietQR
+              class="o-btn o-btn-lg w-full mt-5"
+              [class.o-btn-primary]="p.code === 'STUDIO_PRO'"
+              (click)="createOrder(p)">
+              <o-icon name="qr" [size]="16" /> Chọn gói & Tạo mã VietQR
             </button>
           </div>
         }
       </div>
 
-      <!-- Active Order QR Modal / Section + License Key Activation + Devices + Referral -->
-      <div class="grid grid-cols-1 gap-space-md xl:grid-cols-2">
+      <!-- License Key Activation + Devices + Referral -->
+      <div class="o-two even">
         <!-- Left: License Key Activation & Connected Devices -->
-        <div class="flex flex-col gap-space-md rounded-2xl border border-overlay/[0.08] bg-surface-container p-space-md">
-          <h3 class="text-title-sm font-semibold text-on-surface">🔑 Kích hoạt mã bản quyền (License Key)</h3>
-          <div class="flex gap-2">
-            <input
-              [(ngModel)]="licenseKeyInput"
-              placeholder="Nhập mã kích hoạt (VD: OMNI-PRO-2026-XXXX)…"
-              class="min-w-0 flex-1 rounded-lg border border-overlay/[0.12] bg-surface-container-lowest px-3 py-2 font-mono text-body-sm text-on-surface" />
-            <button
-              type="button"
-              (click)="activateKey()"
-              class="rounded-lg bg-primary px-4 py-2 text-label-md font-semibold text-on-primary">
-              Kích hoạt
-            </button>
+        <div class="o-card">
+          <div class="o-card-head">
+            <div class="o-card-ico"><o-icon name="key" [size]="18" /></div>
+            <div class="min-w-0 flex-1">
+              <div class="o-card-title">Kích hoạt mã bản quyền & Thiết bị</div>
+              <div class="o-card-sub">Nhập khóa kích hoạt gói doanh nghiệp hoặc quản lý thiết bị đăng nhập.</div>
+            </div>
           </div>
 
-          <div class="border-t border-overlay/[0.06] pt-3">
-            <div class="mb-2 flex items-center justify-between">
-              <span class="text-label-md font-semibold text-on-surface">
-                💻 Thiết bị đang đăng nhập ({{ devices().length }}/{{ license()?.maxDevices || 5 }})
-              </span>
+          <div class="o-card-body flex flex-col gap-4">
+            <div class="flex flex-wrap sm:flex-nowrap gap-2">
+              <input
+                class="o-input font-mono flex-1"
+                [(ngModel)]="licenseKeyInput"
+                placeholder="Nhập mã kích hoạt (VD: OMNI-PRO-2026-XXXX)…" />
+              <button type="button" class="o-btn o-btn-primary shrink-0" (click)="activateKey()">
+                <o-icon name="check" [size]="14" /> Kích hoạt
+              </button>
             </div>
-            <ul class="flex flex-col gap-2">
+
+            <div class="o-divider"></div>
+
+            <div class="flex flex-col gap-2.5">
+              <div class="flex items-center justify-between">
+                <span class="text-label-lg font-semibold">
+                  Thiết bị đang đăng nhập ({{ devices().length }}/{{ license()?.maxDevices || 5 }})
+                </span>
+              </div>
               @for (d of devices(); track d.id) {
-                <li class="flex items-center justify-between rounded-xl bg-surface-container-lowest p-3 border border-overlay/[0.06]">
-                  <div>
-                    <div class="font-medium text-body-sm text-on-surface">
-                      {{ d.name }}
-                      @if (d.current) {
-                        <span class="ml-1.5 rounded bg-tertiary/15 px-2 py-0.5 text-[10px] text-tertiary">Thiết bị này</span>
-                      }
+                <div class="o-tile flex items-center justify-between gap-3">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <span class="o-avatar"><o-icon name="laptop" [size]="16" class="o-primary" /></span>
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-2">
+                        <span class="font-semibold text-body-sm truncate">{{ d.name }}</span>
+                        @if (d.current) {
+                          <span class="o-badge success">Thiết bị này</span>
+                        }
+                      </div>
+                      <div class="font-mono text-label-sm o-muted truncate">{{ d.os || 'macOS / Web' }} · Hoạt động hôm nay</div>
                     </div>
-                    <div class="font-mono text-xs text-outline">{{ d.os || 'macOS / Web' }} · Hoạt động gần nhất hôm nay</div>
                   </div>
                   @if (!d.current) {
-                    <button
-                      type="button"
-                      (click)="removeDevice(d.id)"
-                      class="rounded bg-error/15 px-2.5 py-1 text-xs text-error hover:bg-error/25">
+                    <button type="button" class="o-btn o-btn-danger o-btn-sm" (click)="removeDevice(d.id)">
                       Gỡ thiết bị
                     </button>
                   }
-                </li>
+                </div>
               }
-            </ul>
+            </div>
           </div>
         </div>
 
         <!-- Right: Referral Program & Order History -->
-        <div class="flex flex-col gap-space-md rounded-2xl border border-overlay/[0.08] bg-surface-container p-space-md">
-          @if (referral()) {
-            <div class="rounded-xl bg-surface-container-lowest p-3.5 border border-overlay/[0.06] flex flex-col gap-2">
-              <div class="flex items-center justify-between">
-                <span class="text-title-sm font-semibold text-on-surface">🤝 Giới thiệu bạn bè – Nhận 20% hoa hồng</span>
-                <span class="rounded-full bg-secondary/20 px-3 py-0.5 font-mono text-label-sm font-bold text-secondary">
-                  {{ referral().points | number }} điểm thưởng
-                </span>
+        <div class="o-card">
+          <div class="o-card-head">
+            <div class="o-card-ico"><o-icon name="gift" [size]="18" /></div>
+            <div class="min-w-0 flex-1">
+              <div class="o-card-title">Giới thiệu bạn bè & Lịch sử đơn hàng</div>
+              <div class="o-card-sub">Chia sẻ mã giới thiệu nhận 20% hoa hồng và tra cứu hóa đơn VietQR.</div>
+            </div>
+          </div>
+
+          <div class="o-card-body flex flex-col gap-4">
+            @if (referral(); as ref) {
+              <div class="o-tile flex flex-col gap-2.5">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <span class="font-semibold text-label-lg">Thưởng giới thiệu đối tác (20% hoa hồng)</span>
+                  <span class="o-badge pill secondary">{{ ref.points | number }} điểm thưởng</span>
+                </div>
+                <p class="text-body-sm o-muted">
+                  Người nhập mã được giảm 10% đơn đầu tiên, bạn nhận 20% giá trị đơn hàng vào quỹ thưởng.
+                </p>
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="o-badge mono primary" style="height: 32px; padding: 0 12px; font-size: 13px">{{ ref.code }}</span>
+                  <button type="button" class="o-btn o-btn-sm" (click)="copyReferral(ref.code)">
+                    <o-icon name="copy" [size]="13" /> Sao chép mã
+                  </button>
+                  <span class="ml-auto text-label-sm o-muted">
+                    Đã mời {{ ref.totalInvited }} người ({{ ref.paidInvited }} đã mua)
+                  </span>
+                </div>
               </div>
-              <p class="text-xs text-on-surface-variant">
-                Chia sẻ mã giới thiệu của bạn. Người nhập được giảm 10% đơn đầu tiên, bạn nhận 20% giá trị đơn hàng.
-              </p>
-              <div class="flex items-center gap-2">
-                <code class="rounded-lg bg-surface-container px-3 py-1.5 font-mono text-body-sm font-bold text-primary">
-                  {{ referral().code }}
-                </code>
-                <button
-                  type="button"
-                  (click)="copyReferral(referral().code)"
-                  class="rounded-lg bg-surface-container-high px-3 py-1.5 text-xs font-medium text-on-surface">
-                  📋 Sao chép mã
-                </button>
-                <span class="ml-auto text-xs text-outline">
-                  Đã mời {{ referral().totalInvited }} người ({{ referral().paidInvited }} đã mua)
-                </span>
+            }
+
+            <div class="flex flex-col gap-2">
+              <div class="text-label-lg font-semibold">Lịch sử đơn hàng ({{ orders().length }})</div>
+              <div class="flex flex-col gap-2 max-h-60 o-scroll">
+                @for (o of orders(); track o.id) {
+                  <div class="o-tile flex items-center justify-between gap-2">
+                    <div class="min-w-0">
+                      <div class="font-semibold text-body-sm truncate">{{ o.planName }} ({{ o.code }})</div>
+                      <div class="font-mono text-label-sm o-muted">{{ o.amountVnd | number }}đ · {{ o.createdAt | date:'dd/MM/yyyy HH:mm' }}</div>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                      <span class="o-badge" [class.success]="o.status === 'paid'" [class.warning]="o.status !== 'paid'">
+                        {{ o.status === 'paid' ? 'Đã thanh toán' : 'Chờ chuyển khoản' }}
+                      </span>
+                      @if (o.qrUrl) {
+                        <button type="button" class="o-btn o-btn-sm" (click)="activeQrOrder.set(o)">
+                          <o-icon name="qr" [size]="13" /> Mã QR
+                        </button>
+                      }
+                    </div>
+                  </div>
+                }
               </div>
             </div>
-          }
-
-          <div>
-            <h3 class="mb-2 text-title-sm font-semibold text-on-surface">🧾 Lịch sử đơn hàng ({{ orders().length }})</h3>
-            <ul class="flex flex-col gap-2 max-h-56 overflow-y-auto">
-              @for (o of orders(); track o.id) {
-                <li class="flex items-center justify-between rounded-xl bg-surface-container-lowest p-3 border border-overlay/[0.06] text-body-sm">
-                  <div>
-                    <div class="font-semibold text-on-surface">{{ o.planName }} ({{ o.code }})</div>
-                    <div class="font-mono text-xs text-outline">{{ o.amountVnd | number }}đ · {{ o.createdAt | date:'dd/MM/yyyy HH:mm' }}</div>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <span
-                      class="rounded px-2 py-0.5 text-xs font-medium"
-                      [ngClass]="o.status === 'paid' ? 'bg-tertiary/15 text-tertiary' : 'bg-secondary/15 text-secondary'">
-                      {{ o.status === 'paid' ? 'Đã thanh toán' : 'Chờ chuyển khoản' }}
-                    </span>
-                    @if (o.qrUrl) {
-                      <button
-                        type="button"
-                        (click)="activeQrOrder.set(o)"
-                        class="rounded bg-primary/20 px-2.5 py-1 text-xs font-medium text-primary">
-                        Mã QR
-                      </button>
-                    }
-                  </div>
-                </li>
-              }
-            </ul>
           </div>
         </div>
       </div>
     </div>
 
     <!-- VietQR Payment Modal -->
-    @if (activeQrOrder()) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" (click)="activeQrOrder.set(null)">
-        <div class="w-full max-w-md rounded-2xl border border-overlay/[0.12] bg-surface-container-high p-space-lg shadow-2xl flex flex-col items-center gap-3 text-center" (click)="$event.stopPropagation()">
-          <h3 class="text-headline-sm font-bold text-on-surface">Quét mã VietQR để thanh toán</h3>
-          <p class="text-xs text-on-surface-variant">Hệ thống tự động kích hoạt gói trong 15 giây sau khi chuyển khoản.</p>
-          <img [src]="activeQrOrder().qrUrl" alt="VietQR" class="h-60 w-60 rounded-xl bg-white p-2 object-contain" />
-          <div class="w-full rounded-xl bg-surface-container p-3 text-left font-mono text-xs text-on-surface flex flex-col gap-1">
-            <div>Ngân hàng: <strong>{{ activeQrOrder().bankName }}</strong></div>
-            <div>Số tài khoản: <strong>{{ activeQrOrder().accountNumber }}</strong></div>
-            <div>Số tiền: <strong class="text-secondary">{{ activeQrOrder().amountVnd | number }} VNĐ</strong></div>
-            <div>Nội dung CK: <strong class="text-primary">{{ activeQrOrder().transferContent }}</strong></div>
+    @if (activeQrOrder(); as qrOrd) {
+      <div class="o-backdrop" (click)="activeQrOrder.set(null)"></div>
+      <div class="o-modal" style="max-width: 440px" (click)="$event.stopPropagation()">
+        <div class="o-modal-head">
+          <div>
+            <div class="o-card-title">Quét mã VietQR để thanh toán</div>
+            <div class="o-card-sub">Tự động kích hoạt gói trong 15 giây sau khi chuyển khoản.</div>
           </div>
-          <button
-            type="button"
-            (click)="activeQrOrder.set(null)"
-            class="w-full rounded-xl bg-primary py-2.5 text-label-md font-semibold text-on-primary">
-            Đã hiểu / Đóng
-          </button>
+          <button type="button" class="o-icon-btn" (click)="activeQrOrder.set(null)"><o-icon name="x" [size]="16" /></button>
+        </div>
+        <div class="o-modal-body items-center text-center">
+          <img [src]="qrOrd.qrUrl" alt="VietQR" class="h-56 w-56 rounded-xl bg-white p-2.5 object-contain border border-overlay/[0.1]" />
+          <div class="o-tile w-full text-left font-mono text-xs flex flex-col gap-1.5">
+            <div class="flex justify-between"><span class="o-muted">Ngân hàng:</span> <strong>{{ qrOrd.bankName }}</strong></div>
+            <div class="flex justify-between"><span class="o-muted">Số tài khoản:</span> <strong>{{ qrOrd.accountNumber }}</strong></div>
+            <div class="flex justify-between"><span class="o-muted">Số tiền:</span> <strong class="o-secondary">{{ qrOrd.amountVnd | number }} VNĐ</strong></div>
+            <div class="flex justify-between"><span class="o-muted">Nội dung CK:</span> <strong class="o-primary">{{ qrOrd.transferContent }}</strong></div>
+          </div>
+        </div>
+        <div class="o-modal-foot">
+          <button type="button" class="o-btn o-btn-primary w-full" (click)="activeQrOrder.set(null)">Đã hiểu / Đóng</button>
         </div>
       </div>
     }

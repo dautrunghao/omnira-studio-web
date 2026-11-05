@@ -17,11 +17,20 @@ type Step = 'login' | 'register' | 'verify' | 'forgot' | 'reset';
     <div class="auth">
       <div class="glow"></div>
       <div class="box o-card">
-        <div class="flex items-center gap-2 mb-1">
-          <o-icon name="globe" [size]="22" class="o-secondary" />
-          <span class="text-headline-sm">Omnira Studio</span>
-          <span class="o-badge mono primary">1.2.9</span>
-          <span class="o-badge success">Firebase Auth</span>
+        <div class="flex items-center justify-between gap-2 mb-1">
+          <div class="flex items-center gap-2">
+            <o-icon name="globe" [size]="22" class="o-secondary" />
+            <span class="text-headline-sm font-bold">Omnira Studio</span>
+            <span class="o-badge mono primary">1.2.9</span>
+          </div>
+          <button
+            type="button"
+            class="o-btn o-btn-sm"
+            (click)="toggleTheme()"
+            title="Đổi giao diện Sáng / Tối">
+            <o-icon [name]="api.theme() === 'light' ? 'moon' : 'sun'" [size]="14" />
+            <span>{{ api.theme() === 'light' ? 'Tối' : 'Sáng' }}</span>
+          </button>
         </div>
         <p class="text-body-sm o-muted mb-4">Nền tảng quản lý & tự động hóa đa kênh – Facebook, TikTok, Instagram, YouTube</p>
 
@@ -109,7 +118,7 @@ type Step = 'login' | 'register' | 'verify' | 'forgot' | 'reset';
   ],
 })
 export class LoginPageComponent {
-  private readonly api = inject(OmniApiService);
+  readonly api = inject(OmniApiService);
   private readonly shell = inject(ShellStore);
   readonly authed = output<AuthUser>();
   readonly step = signal<Step>('login');
@@ -118,6 +127,10 @@ export class LoginPageComponent {
   readonly showPw = signal(false);
   readonly referral = signal<{ valid: boolean; name?: string; type?: string; discountPercent?: number } | null>(null);
   f = { email: this.shell.auth()?.lastEmail || 'super_admin@gmail.com', password: '111111', displayName: '', phone: '', referralCode: '', code: '', remember: true };
+
+  toggleTheme(): void {
+    this.api.applyTheme(this.api.theme() === 'light' ? 'dark' : 'light');
+  }
 
   fillSuperAdmin() {
     this.f.email = 'super_admin@gmail.com';

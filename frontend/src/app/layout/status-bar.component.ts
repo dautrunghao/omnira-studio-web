@@ -38,7 +38,8 @@ const ENCODER_SHORT: Record<string, string> = {
   `,
   styles: [
     `:host { display: block; flex-shrink: 0; width: 100%; max-width: 100vw; }
-     .sb { display: flex; height: var(--statusbar-h); width: 100%; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 12px; padding: 0 12px; border-top: 1px solid rgb(var(--c-overlay) / 0.06); background: rgb(var(--c-surface-container-lowest)); font-family: 'JetBrains Mono Variable', monospace; font-size: 11px; color: rgb(var(--c-on-surface-variant)); font-variant-numeric: tabular-nums; overflow: hidden; }
+     .sb { display: flex; height: var(--statusbar-h); width: 100%; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 12px; padding: 0 14px; border-top: 1px solid rgb(var(--c-overlay) / 0.07); background: rgb(var(--c-surface-container-lowest)); font-family: 'JetBrains Mono Variable', monospace; font-size: 11px; color: rgb(var(--c-on-surface-variant)); font-variant-numeric: tabular-nums; overflow: hidden; }
+     :host-context([data-theme='light']) .sb { background: #ffffff; border-top: 1px solid rgb(var(--c-outline-variant) / 0.78); }
      .it { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
      @media (max-width: 960px) { .sb-hide-md { display: none; } }
      @media (max-width: 768px) { :host { display: none; } }`,

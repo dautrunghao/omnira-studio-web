@@ -3,118 +3,113 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { DynamicEntity } from '../../core/models';
-import { OmniApiService } from '../../core/omni-api.service';
+import { OmniApiService, ThemeMode } from '../../core/omni-api.service';
+import { IconComponent } from '../../shared/icon.component';
 
 type SettingsTab = 'ai' | 'video' | 'social' | 'system';
+
+interface ThemeOption {
+  value: ThemeMode;
+  label: string;
+  desc: string;
+  icon: string;
+  previewBg: string;
+  previewCard: string;
+  previewText: string;
+}
 
 @Component({
   selector: 'app-settings-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, IconComponent],
   template: `
-    <div class="o-page flex flex-col gap-space-md">
-      <!-- Header & 4-Tab Bar (Matching Original Omnira Studio 1.2.9) -->
-      <div class="flex flex-wrap items-center justify-between gap-space-md rounded-2xl border border-overlay/[0.08] bg-surface-container p-space-md">
-        <div>
-          <h1 class="flex items-center gap-space-sm text-headline-md font-semibold text-on-surface">
-            <span class="text-secondary">⚙️</span> Cài đặt Hệ thống & AI Router
-          </h1>
-          <p class="mt-0.5 text-body-sm text-on-surface-variant">
-            Quản lý khóa API BYOK, định tuyến AI đa tầng, nguồn Video/Giọng đọc (Flow, Seedance, Local TTS), OAuth mạng xã hội và lưu trữ.
+    <div class="o-page">
+      <!-- Page Header -->
+      <div class="o-page-head">
+        <div class="o-page-ico"><o-icon name="settings" [size]="21" /></div>
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <h1 class="o-page-title">Cài đặt Hệ thống & AI Router</h1>
+            <span class="o-badge pill primary">Omnira 2026</span>
+          </div>
+          <p class="o-page-desc">
+            Quản lý khóa API BYOK, định tuyến AI đa tầng, nguồn Video/Giọng đọc (Flow, Seedance, Local TTS), OAuth mạng xã hội và giao diện Sáng/Tối.
           </p>
         </div>
 
-        <nav class="flex flex-wrap gap-1.5 rounded-xl bg-surface-container-low p-1.5 border border-overlay/[0.06]">
-          <button
-            type="button"
-            (click)="activeTab.set('ai')"
-            class="rounded-lg px-3.5 py-1.5 text-label-md font-medium transition"
-            [ngClass]="activeTab() === 'ai' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container-high'">
-            🤖 AI & Định tuyến
-          </button>
-          <button
-            type="button"
-            (click)="activeTab.set('video')"
-            class="rounded-lg px-3.5 py-1.5 text-label-md font-medium transition"
-            [ngClass]="activeTab() === 'video' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container-high'">
-            🎬 Video & Giọng đọc
-          </button>
-          <button
-            type="button"
-            (click)="activeTab.set('social')"
-            class="rounded-lg px-3.5 py-1.5 text-label-md font-medium transition"
-            [ngClass]="activeTab() === 'social' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container-high'">
-            🔗 Kết nối Đăng bài
-          </button>
-          <button
-            type="button"
-            (click)="activeTab.set('system')"
-            class="rounded-lg px-3.5 py-1.5 text-label-md font-medium transition"
-            [ngClass]="activeTab() === 'system' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container-high'">
-            🖥 Hệ thống & Lưu trữ
-          </button>
-        </nav>
+        <div class="o-page-actions">
+          <div class="o-seg" role="tablist" aria-label="Phân mục cài đặt">
+            <button type="button" [class.active]="activeTab() === 'ai'" (click)="activeTab.set('ai')">
+              <o-icon name="bot" [size]="15" /> AI & Định tuyến
+            </button>
+            <button type="button" [class.active]="activeTab() === 'video'" (click)="activeTab.set('video')">
+              <o-icon name="film" [size]="15" /> Video & Giọng đọc
+            </button>
+            <button type="button" [class.active]="activeTab() === 'social'" (click)="activeTab.set('social')">
+              <o-icon name="plug" [size]="15" /> Kết nối Đăng bài
+            </button>
+            <button type="button" [class.active]="activeTab() === 'system'" (click)="activeTab.set('system')">
+              <o-icon name="palette" [size]="15" /> Giao diện & Hệ thống
+            </button>
+          </div>
+        </div>
       </div>
 
       @if (toastMsg()) {
-        <div class="rounded-xl bg-tertiary/15 px-4 py-2 text-label-md text-tertiary flex items-center justify-between">
-          <span>{{ toastMsg() }}</span>
-          <button type="button" (click)="toastMsg.set('')" class="text-xs underline">Đóng</button>
+        <div class="o-banner success justify-between">
+          <div class="flex items-center gap-2">
+            <o-icon name="checkcheck" [size]="16" class="o-tertiary" />
+            <span class="font-medium">{{ toastMsg() }}</span>
+          </div>
+          <button type="button" class="o-btn o-btn-ghost o-btn-sm" (click)="toastMsg.set('')">Đóng</button>
         </div>
       }
 
       @switch (activeTab()) {
         @case ('ai') {
-          <div class="grid grid-cols-1 gap-space-md xl:grid-cols-[1fr_380px]">
-            <!-- AI Providers List -->
-            <div class="flex flex-col gap-space-md rounded-2xl border border-overlay/[0.08] bg-surface-container p-space-md">
-              <div class="flex items-center justify-between">
-                <h2 class="text-title-sm font-semibold text-on-surface">Danh sách Nhà cung cấp AI (BYOK)</h2>
-                <button
-                  type="button"
-                  (click)="testAllProviders()"
-                  class="rounded-lg bg-secondary/20 px-3 py-1.5 text-label-sm font-semibold text-secondary hover:bg-secondary/30">
-                  ⚡ Kiểm tra toàn bộ kết nối
+          <div class="o-two">
+            <!-- Left: AI Providers List (BYOK) -->
+            <div class="o-card">
+              <div class="o-card-head">
+                <div class="o-card-ico"><o-icon name="key" [size]="18" /></div>
+                <div class="min-w-0 flex-1">
+                  <div class="o-card-title">Danh sách Nhà cung cấp AI (BYOK)</div>
+                  <div class="o-card-sub">Kết nối trực tiếp khóa API cá nhân hoặc dùng chung cổng định tuyến đám mây Omnira.</div>
+                </div>
+                <button type="button" class="o-btn o-btn-sm" (click)="testAllProviders()">
+                  <o-icon name="zap" [size]="14" class="o-secondary" /> Kiểm tra toàn bộ kết nối
                 </button>
               </div>
 
-              <div class="flex flex-col gap-3">
+              <div class="o-card-body flex flex-col gap-3">
                 @for (p of providers(); track p.id) {
-                  <div class="flex flex-col gap-2.5 rounded-xl border border-overlay/[0.08] bg-surface-container-lowest p-3.5">
+                  <div class="o-tile flex flex-col gap-3">
                     <div class="flex flex-wrap items-center justify-between gap-2">
-                      <div class="flex items-center gap-2">
-                        <span class="font-semibold text-label-md text-on-surface">{{ p.label || p.provider }}</span>
-                        <span class="rounded bg-surface-container-high px-2 py-0.5 font-mono text-[11px] text-on-surface-variant">
-                          {{ p.category | uppercase }} · {{ p.defaultModel }}
-                        </span>
-                        <span
-                          class="rounded px-2 py-0.5 text-[11px] font-medium"
-                          [ngClass]="p.hasKey ? 'bg-tertiary/15 text-tertiary' : 'bg-warning/15 text-warning'">
-                          {{ p.hasKey ? '✓ Đã cấu hình (' + (p.keyPreview || 'API Key') + ')' : 'Chưa nhập Key' }}
-                        </span>
+                      <div class="flex flex-wrap items-center gap-2">
+                        <span class="font-semibold text-label-lg">{{ p.label || p.provider }}</span>
+                        <span class="o-badge mono">{{ p.category | uppercase }} · {{ p.defaultModel }}</span>
+                        @if (p.hasKey) {
+                          <span class="o-badge success">
+                            <o-icon name="check" [size]="12" /> Đã cấu hình ({{ p.keyPreview || 'API Key' }})
+                          </span>
+                        } @else {
+                          <span class="o-badge warning">Chưa nhập Key</span>
+                        }
                       </div>
 
-                      <div class="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          (click)="testSingleProvider(p)"
-                          class="rounded-lg bg-surface-container-high px-2.5 py-1 text-xs text-on-surface hover:bg-surface-container-highest">
-                          Kiểm tra
-                        </button>
-                      </div>
+                      <button type="button" class="o-btn o-btn-sm" (click)="testSingleProvider(p)">
+                        <o-icon name="activity" [size]="13" /> Kiểm tra
+                      </button>
                     </div>
 
-                    <div class="flex gap-2">
+                    <div class="flex flex-wrap sm:flex-nowrap gap-2">
                       <input
+                        class="o-input font-mono flex-1"
                         [(ngModel)]="keyInputs[p.provider]"
                         type="password"
-                        [placeholder]="p.hasKey ? 'Nhập API Key mới để thay thế…' : 'Dán API Key (' + p.provider + ')…'"
-                        class="min-w-0 flex-1 rounded-lg border border-overlay/[0.12] bg-surface-container px-3 py-1.5 font-mono text-xs text-on-surface" />
-                      <button
-                        type="button"
-                        (click)="saveProviderKey(p)"
-                        class="rounded-lg bg-primary px-3.5 py-1.5 text-xs font-semibold text-on-primary">
-                        Lưu Key
+                        [placeholder]="p.hasKey ? 'Nhập API Key mới để thay thế…' : 'Dán API Key (' + p.provider + ')…'" />
+                      <button type="button" class="o-btn o-btn-primary shrink-0" (click)="saveProviderKey(p)">
+                        <o-icon name="check" [size]="14" /> Lưu Key
                       </button>
                     </div>
                   </div>
@@ -122,57 +117,118 @@ type SettingsTab = 'ai' | 'video' | 'social' | 'system';
               </div>
             </div>
 
-            <!-- Right: AI Budget & Routing -->
-            <div class="flex flex-col gap-space-md">
-              @if (budget()) {
-                <div class="flex flex-col gap-space-sm rounded-2xl border border-overlay/[0.08] bg-surface-container p-space-md">
-                  <h2 class="text-title-sm font-semibold text-on-surface">💰 Ngân sách AI & Cầu dao ngắt tự động</h2>
-                  <div class="rounded-xl bg-surface-container-lowest p-3 border border-overlay/[0.06]">
-                    <div class="text-xs text-outline">Đã chi tiêu trong tháng này</div>
-                    <div class="mt-0.5 text-headline-sm font-bold text-secondary">
-                      \${{ budget().spentThisMonthUsd }} <span class="text-body-sm font-normal text-outline">/ \${{ budget().monthlyHardCapUsd }}</span>
+            <!-- Right: AI Budget & Fallback Routing + Quick Theme Card -->
+            <div class="flex flex-col gap-4">
+              @if (budget(); as b) {
+                <div class="o-card">
+                  <div class="o-card-head">
+                    <div class="o-card-ico"><o-icon name="dollar" [size]="18" /></div>
+                    <div class="min-w-0 flex-1">
+                      <div class="o-card-title">Ngân sách AI & Cầu dao ngắt tự động</div>
+                      <div class="o-card-sub">Kiểm soát chi phí token và tự ngắt khi chạm ngưỡng an toàn.</div>
                     </div>
                   </div>
 
-                  <label class="flex flex-col gap-1 text-label-sm text-on-surface-variant">
-                    Hạn mức tối đa mỗi tháng (USD)
-                    <input
-                      type="number"
-                      [(ngModel)]="budget().monthlyHardCapUsd"
-                      (blur)="saveBudget()"
-                      class="rounded-lg border border-overlay/[0.12] bg-surface-container-lowest px-3 py-1.5 font-mono text-body-sm text-on-surface" />
-                  </label>
-
-                  <label class="flex items-center justify-between text-body-sm text-on-surface pt-1">
-                    <span>Tự động ngắt khi chạm trần ngân sách</span>
-                    <input
-                      type="checkbox"
-                      [(ngModel)]="budget().circuitBreaker"
-                      (change)="saveBudget()"
-                      class="h-4 w-4 accent-secondary" />
-                  </label>
-
-                  <div class="border-t border-overlay/[0.06] pt-2">
-                    <div class="text-label-sm text-outline mb-1.5">Chi tiết theo tính năng</div>
-                    @for (bf of budget().byFeature || []; track bf.feature) {
-                      <div class="flex justify-between py-1 text-xs">
-                        <span class="text-on-surface-variant">{{ bf.feature }}</span>
-                        <span class="font-mono text-on-surface">\${{ bf.costUsd }} ({{ bf.calls }} lượt)</span>
+                  <div class="o-card-body flex flex-col gap-3.5">
+                    <div class="o-tile flex flex-col gap-2">
+                      <div class="flex items-baseline justify-between">
+                        <span class="text-label-sm o-muted">Đã chi tiêu trong tháng này</span>
+                        <span class="o-badge pill secondary">{{ budgetPercent() }}% hạn mức</span>
                       </div>
-                    }
+                      <div class="flex items-baseline gap-1.5">
+                        <span class="text-headline-md font-bold o-secondary">\${{ b.spentThisMonthUsd }}</span>
+                        <span class="text-body-sm o-muted">/ \${{ b.monthlyHardCapUsd }} USD</span>
+                      </div>
+                      <div class="o-progress"><div [style.width.%]="budgetPercent()"></div></div>
+                    </div>
+
+                    <label class="o-field">
+                      <span class="o-label">Hạn mức tối đa mỗi tháng (USD)</span>
+                      <input
+                        class="o-input font-mono"
+                        type="number"
+                        [(ngModel)]="b.monthlyHardCapUsd"
+                        (blur)="saveBudget()" />
+                    </label>
+
+                    <div class="flex items-center justify-between gap-3 py-1">
+                      <div>
+                        <div class="text-label-md font-medium">Tự động ngắt khi chạm trần ngân sách</div>
+                        <div class="text-label-sm o-muted">Tạm dừng tạo video/kịch bản mới khi vượt trần</div>
+                      </div>
+                      <button
+                        type="button"
+                        class="o-switch"
+                        [class.on]="b.circuitBreaker"
+                        role="switch"
+                        [attr.aria-checked]="b.circuitBreaker"
+                        (click)="b.circuitBreaker = !b.circuitBreaker; saveBudget()"></button>
+                    </div>
+
+                    <div class="o-divider"></div>
+
+                    <div class="flex flex-col gap-2">
+                      <div class="text-label-sm font-semibold o-muted uppercase tracking-wider">Chi tiết theo tính năng</div>
+                      @for (bf of b.byFeature || []; track bf.feature) {
+                        <div class="flex items-center justify-between gap-2 py-1 text-body-sm">
+                          <span class="o-muted truncate">{{ bf.feature }}</span>
+                          <span class="o-badge mono">\${{ bf.costUsd }} · {{ bf.calls }} lượt</span>
+                        </div>
+                      }
+                    </div>
                   </div>
                 </div>
               }
 
-              <div class="flex flex-col gap-space-sm rounded-2xl border border-overlay/[0.08] bg-surface-container p-space-md">
-                <h2 class="text-title-sm font-semibold text-on-surface">🔀 Chuỗi Dự Phòng (Fallback Routing)</h2>
-                <p class="text-xs text-on-surface-variant">
-                  Khi nhà cung cấp chính quá tải hoặc hết hạn mức, Omnira tự động chuyển sang model tiếp theo trong chuỗi.
-                </p>
-                <div class="rounded-xl bg-surface-container-lowest p-3 font-mono text-xs text-on-surface flex flex-col gap-1.5">
-                  <div>Văn bản: <span class="text-secondary">Gemini 3.5 → GPT-4o → Claude Sonnet</span></div>
-                  <div>Giọng đọc: <span class="text-secondary">Gemini TTS → ElevenLabs → Local TTS</span></div>
-                  <div>Video/Ảnh: <span class="text-secondary">Seedance 2.0 → Google Veo 3.1 → Kling</span></div>
+              <div class="o-card">
+                <div class="o-card-head">
+                  <div class="o-card-ico"><o-icon name="route" [size]="18" /></div>
+                  <div class="min-w-0 flex-1">
+                    <div class="o-card-title">Chuỗi Dự Phòng (Fallback Routing)</div>
+                    <div class="o-card-sub">Tự động chuyển sang model kế tiếp khi nhà cung cấp chính quá tải.</div>
+                  </div>
+                </div>
+
+                <div class="o-card-body flex flex-col gap-2.5">
+                  <div class="o-tile flex flex-col gap-1">
+                    <span class="text-label-sm o-muted">Kịch bản & Văn bản</span>
+                    <span class="font-mono text-label-md o-primary">Gemini 3.5 → GPT-4o → Claude Sonnet</span>
+                  </div>
+                  <div class="o-tile flex flex-col gap-1">
+                    <span class="text-label-sm o-muted">Giọng đọc AI (TTS)</span>
+                    <span class="font-mono text-label-md o-secondary">Gemini TTS → ElevenLabs → Local TTS</span>
+                  </div>
+                  <div class="o-tile flex flex-col gap-1">
+                    <span class="text-label-sm o-muted">Video & Hình ảnh</span>
+                    <span class="font-mono text-label-md o-tertiary">Seedance 2.0 → Google Veo 3.1 → Kling</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Quick Theme Switcher Card right on main tab -->
+              <div class="o-card">
+                <div class="o-card-head">
+                  <div class="o-card-ico"><o-icon name="sun" [size]="18" /></div>
+                  <div class="min-w-0 flex-1">
+                    <div class="o-card-title">Chế độ Sáng / Tối (Theme Mode)</div>
+                    <div class="o-card-sub">Chuyển đổi tức thì giữa giao diện Sáng (Light) và Tối (Dark).</div>
+                  </div>
+                </div>
+                <div class="o-card-body grid grid-cols-2 gap-2.5">
+                  @for (t of themeOptions; track t.value) {
+                    <button
+                      type="button"
+                      class="o-tile flex items-center gap-2.5 text-left cursor-pointer"
+                      [style.border-color]="api.theme() === t.value ? 'rgb(var(--c-primary))' : ''"
+                      [style.background]="api.theme() === t.value ? 'rgb(var(--c-primary) / 0.08)' : ''"
+                      (click)="setTheme(t.value)">
+                      <o-icon [name]="t.icon" [size]="16" [class.o-primary]="api.theme() === t.value" />
+                      <div class="min-w-0 flex-1">
+                        <div class="text-label-md font-semibold truncate">{{ t.label }}</div>
+                        <div class="text-label-sm o-muted truncate">{{ t.desc }}</div>
+                      </div>
+                    </button>
+                  }
                 </div>
               </div>
             </div>
@@ -180,87 +236,107 @@ type SettingsTab = 'ai' | 'video' | 'social' | 'system';
         }
 
         @case ('video') {
-          <div class="grid grid-cols-1 gap-space-md lg:grid-cols-2">
-            <div class="flex flex-col gap-space-md rounded-2xl border border-overlay/[0.08] bg-surface-container p-space-md">
-              <h2 class="text-title-sm font-semibold text-on-surface">🎞 Nguồn Video AI (Google Flow / Muse / Grok / Seedance)</h2>
-
-              <div class="rounded-xl bg-surface-container-lowest p-3.5 border border-overlay/[0.06] flex flex-col gap-2">
-                <div class="flex items-center justify-between">
-                  <span class="font-semibold text-body-sm text-on-surface">Google Flow (Veo 3.1 + Nano Banana Image)</span>
-                  <span class="rounded bg-tertiary/15 px-2 py-0.5 text-xs text-tertiary">✓ Đã kết nối · {{ flowStatus()?.credits || 1850 }} tín dụng</span>
+          <div class="o-two even">
+            <div class="o-card">
+              <div class="o-card-head">
+                <div class="o-card-ico"><o-icon name="video" [size]="18" /></div>
+                <div class="min-w-0 flex-1">
+                  <div class="o-card-title">Nguồn Video AI (Google Flow / Seedance / FFmpeg)</div>
+                  <div class="o-card-sub">Trạng thái kết nối các engine dựng phim và bộ mã hóa phần cứng.</div>
                 </div>
-                <p class="text-xs text-on-surface-variant">
-                  Tạo ảnh Nano Banana tốn 0 tín dụng qua phiên Google Flow, tạo video Veo 3.1 Fast đa luồng.
-                </p>
               </div>
 
-              <div class="rounded-xl bg-surface-container-lowest p-3.5 border border-overlay/[0.06] flex flex-col gap-2">
-                <div class="flex items-center justify-between">
-                  <span class="font-semibold text-body-sm text-on-surface">Seedance 2.0 (Fal.ai / CometAPI / PiAPI)</span>
-                  <span class="rounded bg-secondary/15 px-2 py-0.5 text-xs text-secondary">Chế độ: {{ mediaInfo()?.seedanceTier || 'fast' | uppercase }}</span>
+              <div class="o-card-body flex flex-col gap-3">
+                <div class="o-tile flex flex-col gap-1.5">
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <span class="font-semibold text-label-lg">Google Flow (Veo 3.1 + Nano Banana Image)</span>
+                    <span class="o-badge success"><o-icon name="check" [size]="12" /> Đã kết nối · {{ flowStatus()?.credits || 1850 }} tín dụng</span>
+                  </div>
+                  <p class="text-body-sm o-muted">
+                    Tạo ảnh Nano Banana tốn 0 tín dụng qua phiên Google Flow, tạo video Veo 3.1 Fast đa luồng.
+                  </p>
                 </div>
-                <p class="text-xs text-on-surface-variant">
-                  Hỗ trợ chuỗi cảnh liên tiếp (Chain Shots) giữ nguyên đồng nhất khuôn mặt nhân vật.
-                </p>
-              </div>
 
-              <div class="rounded-xl bg-surface-container-lowest p-3.5 border border-overlay/[0.06] flex flex-col gap-2">
-                <div class="flex items-center justify-between">
-                  <span class="font-semibold text-body-sm text-on-surface">FFmpeg Hardware Encoder</span>
-                  <span class="font-mono text-xs text-tertiary">{{ mediaInfo()?.preferredEncoder || 'h264_nvenc' }}</span>
+                <div class="o-tile flex flex-col gap-1.5">
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <span class="font-semibold text-label-lg">Seedance 2.0 (Fal.ai / CometAPI / PiAPI)</span>
+                    <span class="o-badge secondary">Chế độ: {{ mediaInfo()?.seedanceTier || 'fast' | uppercase }}</span>
+                  </div>
+                  <p class="text-body-sm o-muted">
+                    Hỗ trợ chuỗi cảnh liên tiếp (Chain Shots) giữ nguyên đồng nhất khuôn mặt nhân vật.
+                  </p>
                 </div>
-                <p class="text-xs text-on-surface-variant">
-                  Phiên bản: {{ mediaInfo()?.ffmpegVersion || '7.1-omnira-cloud' }} · Hỗ trợ phụ đề Karaoke ASS & Upscale Real-ESRGAN.
-                </p>
+
+                <div class="o-tile flex flex-col gap-1.5">
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <span class="font-semibold text-label-lg">FFmpeg Hardware Encoder</span>
+                    <span class="o-badge mono primary">{{ mediaInfo()?.preferredEncoder || 'h264_nvenc' }}</span>
+                  </div>
+                  <p class="text-body-sm o-muted">
+                    Phiên bản: {{ mediaInfo()?.ffmpegVersion || '7.1-omnira-cloud' }} · Hỗ trợ phụ đề Karaoke ASS & Upscale Real-ESRGAN.
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div class="flex flex-col gap-space-md rounded-2xl border border-overlay/[0.08] bg-surface-container p-space-md">
-              <h2 class="text-title-sm font-semibold text-on-surface">🎙 Omnira Local TTS (VieNeu-TTS & Nhân bản giọng nói)</h2>
-              <p class="text-body-sm text-on-surface-variant">
-                Chạy trực tiếp trên máy không tốn phí API. Cho phép thu âm hoặc tải mẫu giọng 10 giây để nhân bản giọng đọc tiếng Việt.
-              </p>
-
-              <div class="flex gap-2">
-                <input
-                  [(ngModel)]="newCloneName"
-                  placeholder="Tên giọng nhân bản mới (VD: Giọng CEO Minh)…"
-                  class="min-w-0 flex-1 rounded-lg border border-overlay/[0.12] bg-surface-container-lowest px-3 py-2 text-body-sm text-on-surface" />
-                <button
-                  type="button"
-                  (click)="addVoiceClone()"
-                  class="rounded-lg bg-primary px-4 py-2 text-label-md font-semibold text-on-primary">
-                  ＋ Thêm mẫu giọng
-                </button>
+            <div class="o-card">
+              <div class="o-card-head">
+                <div class="o-card-ico"><o-icon name="mic" [size]="18" /></div>
+                <div class="min-w-0 flex-1">
+                  <div class="o-card-title">Omnira Local TTS (VieNeu-TTS & Nhân bản giọng nói)</div>
+                  <div class="o-card-sub">Chạy trực tiếp không tốn phí API, nhân bản giọng đọc tiếng Việt từ mẫu 10 giây.</div>
+                </div>
               </div>
 
-              <ul class="flex flex-col gap-2">
-                @for (vc of voiceClones(); track vc.id) {
-                  <li class="flex items-center justify-between rounded-xl bg-surface-container-lowest p-3 border border-overlay/[0.06]">
-                    <div>
-                      <div class="font-semibold text-body-sm text-on-surface">{{ vc.name }}</div>
-                      <div class="font-mono text-xs text-outline">{{ vc.sampleFile }} · Tiếng Việt</div>
+              <div class="o-card-body flex flex-col gap-3">
+                <div class="flex flex-wrap sm:flex-nowrap gap-2">
+                  <input
+                    class="o-input flex-1"
+                    [(ngModel)]="newCloneName"
+                    placeholder="Tên giọng nhân bản mới (VD: Giọng CEO Minh)…" />
+                  <button type="button" class="o-btn o-btn-primary shrink-0" (click)="addVoiceClone()">
+                    <o-icon name="plus" [size]="15" /> Thêm mẫu giọng
+                  </button>
+                </div>
+
+                <div class="flex flex-col gap-2">
+                  @for (vc of voiceClones(); track vc.id) {
+                    <div class="o-tile flex items-center justify-between gap-3">
+                      <div class="flex items-center gap-3 min-w-0">
+                        <span class="o-avatar"><o-icon name="audio" [size]="16" class="o-primary" /></span>
+                        <div class="min-w-0">
+                          <div class="font-semibold text-label-lg truncate">{{ vc.name }}</div>
+                          <div class="font-mono text-label-sm o-muted truncate">{{ vc.sampleFile }} · Tiếng Việt</div>
+                        </div>
+                      </div>
+                      <span class="o-badge success">Sẵn sàng</span>
                     </div>
-                    <span class="rounded bg-tertiary/15 px-2 py-0.5 text-xs text-tertiary">Sẵn sàng</span>
-                  </li>
-                }
-              </ul>
+                  }
+                </div>
+              </div>
             </div>
           </div>
         }
 
         @case ('social') {
-          <div class="rounded-2xl border border-overlay/[0.08] bg-surface-container p-space-md flex flex-col gap-space-md">
-            <h2 class="text-title-sm font-semibold text-on-surface">🔗 Ứng dụng OAuth Mạng Xã Hội (Meta / TikTok / YouTube)</h2>
-            <p class="text-body-sm text-on-surface-variant">
-              Kết nối trực tiếp qua Graph API / TikTok Content Posting API / YouTube Data API v3 hoặc dùng chế độ Browser Profile chống phát hiện.
-            </p>
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-              @for (pf of ['Facebook & Instagram (Meta Graph API)', 'TikTok For Developers Kit', 'YouTube Data API v3 (Google Cloud)']; track pf) {
-                <div class="rounded-xl border border-overlay/[0.08] bg-surface-container-lowest p-4 flex flex-col gap-2">
-                  <div class="font-semibold text-label-md text-on-surface">{{ pf }}</div>
-                  <span class="w-fit rounded bg-tertiary/15 px-2 py-0.5 text-xs text-tertiary">✓ Đã cấu hình OAuth Redirect</span>
-                  <p class="text-xs text-on-surface-variant">Hỗ trợ tự động làm mới Access Token ngầm định kỳ.</p>
+          <div class="o-card">
+            <div class="o-card-head">
+              <div class="o-card-ico"><o-icon name="plug" [size]="18" /></div>
+              <div class="min-w-0 flex-1">
+                <div class="o-card-title">Ứng dụng OAuth Mạng Xã Hội (Meta / TikTok / YouTube)</div>
+                <div class="o-card-sub">Kết nối trực tiếp qua Graph API / TikTok Content Posting API / YouTube Data API v3 hoặc dùng chế độ Browser Profile chống phát hiện.</div>
+              </div>
+            </div>
+
+            <div class="o-card-body o-grid-cards">
+              @for (pf of socialPlatforms; track pf.title) {
+                <div class="o-tile flex flex-col gap-2.5">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="o-plat" [ngClass]="pf.badgeClass">{{ pf.short }}</span>
+                    <span class="o-badge success"><o-icon name="check" [size]="12" /> OAuth Redirect</span>
+                  </div>
+                  <div class="font-semibold text-label-lg">{{ pf.title }}</div>
+                  <p class="text-body-sm o-muted">{{ pf.desc }}</p>
                 </div>
               }
             </div>
@@ -268,32 +344,91 @@ type SettingsTab = 'ai' | 'video' | 'social' | 'system';
         }
 
         @case ('system') {
-          <div class="grid grid-cols-1 gap-space-md lg:grid-cols-2">
-            <div class="rounded-2xl border border-overlay/[0.08] bg-surface-container p-space-md flex flex-col gap-space-sm">
-              <h2 class="text-title-sm font-semibold text-on-surface">☁️ Cơ sở dữ liệu Firebase Firestore & Lưu trữ</h2>
-              @if (storageInfo()) {
-                <div class="rounded-xl bg-surface-container-lowest p-4 font-mono text-xs text-on-surface flex flex-col gap-2 border border-overlay/[0.06]">
-                  <div>Firebase Project ID: <strong class="text-secondary">{{ storageInfo().firebaseProjectId }}</strong></div>
-                  <div>Đường dẫn đồng bộ: <strong class="text-primary">{{ storageInfo().root }}</strong></div>
-                  <div>Dung lượng Database: <strong>{{ (storageInfo().dbSizeBytes / 1024 / 1024) | number:'1.2-2' }} MB</strong></div>
-                  <div>Dung lượng Media Cache: <strong>{{ (storageInfo().mediaSizeBytes / 1024 / 1024) | number:'1.1-1' }} MB</strong></div>
+          <div class="o-two even">
+            <!-- Theme Mode Selector Card -->
+            <div class="o-card">
+              <div class="o-card-head">
+                <div class="o-card-ico"><o-icon name="palette" [size]="18" /></div>
+                <div class="min-w-0 flex-1">
+                  <div class="o-card-title">Giao diện Sáng / Tối (Theme & Appearance)</div>
+                  <div class="o-card-sub">Tùy chỉnh chế độ màu sắc phù hợp với môi trường làm việc ban ngày hoặc ban đêm.</div>
                 </div>
-              }
+              </div>
+
+              <div class="o-card-body flex flex-col gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  @for (t of themeOptions; track t.value) {
+                    <button
+                      type="button"
+                      class="o-tile flex flex-col gap-2.5 text-left cursor-pointer"
+                      [style.border-color]="api.theme() === t.value ? 'rgb(var(--c-primary))' : ''"
+                      [style.box-shadow]="api.theme() === t.value ? '0 0 0 2px rgb(var(--c-primary) / 0.2)' : ''"
+                      (click)="setTheme(t.value)">
+                      <div class="flex items-center justify-between w-full">
+                        <span class="inline-flex items-center gap-2 font-semibold text-label-lg">
+                          <o-icon [name]="t.icon" [size]="16" [class.o-primary]="api.theme() === t.value" />
+                          {{ t.label }}
+                        </span>
+                        @if (api.theme() === t.value) {
+                          <span class="o-badge primary">Đang dùng</span>
+                        }
+                      </div>
+                      <div class="h-12 w-full rounded-lg border border-overlay/[0.12] p-2 flex items-center gap-2" [style.background]="t.previewBg">
+                        <div class="h-7 w-14 rounded-md border border-overlay/[0.12]" [style.background]="t.previewCard"></div>
+                        <div class="flex-1 flex flex-col gap-1">
+                          <div class="h-2 w-3/4 rounded-full" [style.background]="t.previewText"></div>
+                          <div class="h-1.5 w-1/2 rounded-full opacity-50" [style.background]="t.previewText"></div>
+                        </div>
+                      </div>
+                      <span class="text-label-sm o-muted">{{ t.desc }}</span>
+                    </button>
+                  }
+                </div>
+
+                <div class="o-divider"></div>
+
+                <div>
+                  <div class="text-label-md font-semibold mb-1">Hiệu ứng nền Fluent Command Suite</div>
+                  <p class="text-body-sm o-muted mb-2.5">Tùy chỉnh hiệu ứng ánh sáng nền Aurora / Acrylic.</p>
+                  <div class="flex flex-wrap gap-2">
+                    @for (preset of ['aurora', 'neon_cyber', 'minimal_dark', 'sunset_gold']; track preset) {
+                      <button type="button" class="o-btn o-btn-sm" (click)="setBgPreset(preset)">
+                        <o-icon name="sparkles" [size]="13" class="o-primary" /> {{ preset | uppercase }}
+                      </button>
+                    }
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div class="rounded-2xl border border-overlay/[0.08] bg-surface-container p-space-md flex flex-col gap-space-sm">
-              <h2 class="text-title-sm font-semibold text-on-surface">🎨 Hiệu ứng nền Fluent Command Suite</h2>
-              <p class="text-body-sm text-on-surface-variant">
-                Tùy chỉnh hiệu ứng Aurora / Acrylic mờ nền theo phong cách Windows 11 Fluent Design.
-              </p>
-              <div class="flex flex-wrap gap-2 pt-1">
-                @for (preset of ['aurora', 'neon_cyber', 'minimal_dark', 'sunset_gold']; track preset) {
-                  <button
-                    type="button"
-                    (click)="setBgPreset(preset)"
-                    class="rounded-xl bg-surface-container-high px-3.5 py-2 text-label-sm font-medium text-on-surface hover:bg-primary hover:text-on-primary transition">
-                    ✨ {{ preset | uppercase }}
-                  </button>
+            <!-- Firebase Firestore & Storage -->
+            <div class="o-card">
+              <div class="o-card-head">
+                <div class="o-card-ico"><o-icon name="database" [size]="18" /></div>
+                <div class="min-w-0 flex-1">
+                  <div class="o-card-title">Cơ sở dữ liệu Firebase Firestore & Lưu trữ</div>
+                  <div class="o-card-sub">Đồng bộ thời gian thực trên nền tảng đám mây Google Firebase.</div>
+                </div>
+              </div>
+
+              <div class="o-card-body flex flex-col gap-3">
+                @if (storageInfo(); as st) {
+                  <div class="o-tile flex items-center justify-between">
+                    <span class="text-body-sm o-muted">Firebase Project ID</span>
+                    <span class="o-badge mono secondary">{{ st.firebaseProjectId }}</span>
+                  </div>
+                  <div class="o-tile flex items-center justify-between">
+                    <span class="text-body-sm o-muted">Đường dẫn đồng bộ</span>
+                    <span class="o-badge mono primary">{{ st.root }}</span>
+                  </div>
+                  <div class="o-tile flex items-center justify-between">
+                    <span class="text-body-sm o-muted">Dung lượng Database</span>
+                    <span class="font-mono font-semibold text-body-sm">{{ (st.dbSizeBytes / 1024 / 1024) | number:'1.2-2' }} MB</span>
+                  </div>
+                  <div class="o-tile flex items-center justify-between">
+                    <span class="text-body-sm o-muted">Dung lượng Media Cache</span>
+                    <span class="font-mono font-semibold text-body-sm">{{ (st.mediaSizeBytes / 1024 / 1024) | number:'1.1-1' }} MB</span>
+                  </div>
                 }
               </div>
             </div>
@@ -304,7 +439,7 @@ type SettingsTab = 'ai' | 'video' | 'social' | 'system';
   `,
 })
 export class SettingsPage implements OnInit {
-  private readonly api = inject(OmniApiService);
+  readonly api = inject(OmniApiService);
   private readonly route = inject(ActivatedRoute);
 
   readonly activeTab = signal<SettingsTab>('ai');
@@ -319,12 +454,84 @@ export class SettingsPage implements OnInit {
   keyInputs: Record<string, string> = {};
   newCloneName = '';
 
+  readonly themeOptions: ThemeOption[] = [
+    {
+      value: 'light',
+      label: 'Chế độ Sáng (Light)',
+      desc: 'Nền trắng tinh khiết, sắc nét ban ngày',
+      icon: 'sun',
+      previewBg: '#f3f6fc',
+      previewCard: '#ffffff',
+      previewText: '#0f172a',
+    },
+    {
+      value: 'dark',
+      label: 'Chế độ Tối (Dark)',
+      desc: 'Obsidian Slate dịu mắt, chuyên sâu',
+      icon: 'moon',
+      previewBg: '#090d18',
+      previewCard: '#141c2f',
+      previewText: '#f1f5f9',
+    },
+    {
+      value: 'system',
+      label: 'Theo hệ thống',
+      desc: 'Tự động đổi Sáng / Tối theo HĐH',
+      icon: 'monitor',
+      previewBg: 'linear-gradient(90deg, #090d18 50%, #f3f6fc 50%)',
+      previewCard: '#6366f1',
+      previewText: '#94a3b8',
+    },
+    {
+      value: 'halloween',
+      label: 'Halloween',
+      desc: 'Tông cam bí ngô & tím huyền bí',
+      icon: 'ghost',
+      previewBg: '#0d0714',
+      previewCard: '#211332',
+      previewText: '#ff8a1f',
+    },
+  ];
+
+  readonly socialPlatforms = [
+    {
+      short: 'META',
+      badgeClass: 'facebook',
+      title: 'Facebook & Instagram (Meta Graph API)',
+      desc: 'Đăng Reels, bài ảnh, Carousel và đồng bộ tin nhắn/bình luận thời gian thực.',
+    },
+    {
+      short: 'TIKTOK',
+      badgeClass: 'tiktok',
+      title: 'TikTok For Developers Kit',
+      desc: 'Xuất bản video 9:16 trực tiếp qua Content Posting API hoặc Antidetect Profile.',
+    },
+    {
+      short: 'YOUTUBE',
+      badgeClass: 'youtube',
+      title: 'YouTube Data API v3 (Google Cloud)',
+      desc: 'Tải lên YouTube Shorts & video dài kèm tối ưu hóa SEO tự động.',
+    },
+  ];
+
   async ngOnInit() {
     const tab = this.route.snapshot.queryParamMap.get('tab') as SettingsTab | null;
     if (tab && ['ai', 'video', 'social', 'system'].includes(tab)) {
       this.activeTab.set(tab);
     }
     await this.loadAll();
+  }
+
+  budgetPercent(): number {
+    const b = this.budget();
+    if (!b || !b.monthlyHardCapUsd) return 0;
+    return Math.min(100, Math.round((Number(b.spentThisMonthUsd || 0) / Number(b.monthlyHardCapUsd)) * 100));
+  }
+
+  setTheme(mode: ThemeMode): void {
+    this.api.applyTheme(mode);
+    const found = this.themeOptions.find((t) => t.value === mode);
+    this.toastMsg.set(`Đã chuyển sang ${found?.label ?? mode}!`);
   }
 
   async loadAll() {

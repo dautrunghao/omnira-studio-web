@@ -3,108 +3,118 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DynamicEntity } from '../../core/models';
 import { OmniApiService } from '../../core/omni-api.service';
+import { IconComponent } from '../../shared/icon.component';
 
 @Component({
   selector: 'app-support-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, IconComponent],
   template: `
-    <div class="o-page flex flex-col gap-space-md">
+    <div class="o-page">
       <!-- Header -->
-      <div class="flex flex-wrap items-center justify-between gap-space-md rounded-2xl border border-overlay/[0.08] bg-surface-container p-space-md">
-        <div>
-          <h1 class="flex items-center gap-space-sm text-headline-md font-semibold text-on-surface">
-            <span class="text-secondary">💬</span> Hỗ trợ kỹ thuật & Góp ý tính năng
-          </h1>
-          <p class="mt-0.5 text-body-sm text-on-surface-variant">
+      <div class="o-page-head">
+        <div class="o-page-ico"><o-icon name="lifebuoy" [size]="21" /></div>
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <h1 class="o-page-title">Hỗ trợ kỹ thuật & Góp ý tính năng</h1>
+            <span class="o-badge pill success"><span class="o-dot success live"></span> Trực tuyến 24/7</span>
+          </div>
+          <p class="o-page-desc">
             Gửi yêu cầu hỗ trợ trực tiếp tới đội ngũ kỹ sư Omnira Studio, báo lỗi hoặc đề xuất tính năng AI mới.
           </p>
         </div>
 
-        <button
-          type="button"
-          (click)="newModalOpen.set(true)"
-          class="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-label-md font-semibold text-on-primary hover:opacity-90">
-          ＋ Tạo yêu cầu hỗ trợ mới
-        </button>
+        <div class="o-page-actions">
+          <button type="button" class="o-btn o-btn-primary" (click)="newModalOpen.set(true)">
+            <o-icon name="plus" [size]="15" /> Tạo yêu cầu hỗ trợ mới
+          </button>
+        </div>
       </div>
 
-      <div class="grid grid-cols-1 gap-space-md lg:grid-cols-[340px_1fr]">
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-[360px_1fr]">
         <!-- Left: Ticket List -->
-        <div class="flex flex-col gap-2 rounded-2xl border border-overlay/[0.08] bg-surface-container p-space-md">
-          <h2 class="text-title-sm font-semibold text-on-surface">Danh sách yêu cầu ({{ tickets().length }})</h2>
+        <div class="o-card">
+          <div class="o-card-head">
+            <div class="o-card-ico"><o-icon name="inbox" [size]="18" /></div>
+            <div class="min-w-0 flex-1">
+              <div class="o-card-title">Danh sách yêu cầu ({{ tickets().length }})</div>
+              <div class="o-card-sub">Theo dõi tiến độ phản hồi từ đội ngũ kỹ thuật.</div>
+            </div>
+          </div>
 
-          @for (t of tickets(); track t.id) {
-            <button
-              type="button"
-              (click)="selectedId.set(t.id)"
-              class="flex flex-col gap-1 rounded-xl p-3 text-left transition"
-              [ngClass]="t.id === selectedId() ? 'bg-surface-container-high border border-secondary/40' : 'bg-surface-container-lowest hover:bg-surface-container-low border border-transparent'">
-              <div class="flex items-center justify-between gap-2">
-                <span class="font-mono text-xs text-outline">#{{ t.id }}</span>
-                <span
-                  class="rounded px-2 py-0.5 text-[10px] font-semibold"
-                  [ngClass]="t.status === 'answered' ? 'bg-tertiary/15 text-tertiary' : 'bg-secondary/15 text-secondary'">
-                  {{ t.status === 'answered' ? 'Đã phản hồi' : 'Đang xử lý' }}
-                </span>
-              </div>
-              <div class="truncate font-semibold text-label-md text-on-surface">{{ t.subject }}</div>
-              <div class="text-xs text-outline">
-                {{ t.type === 'feature' ? '💡 Đề xuất tính năng' : '🛠 Hỗ trợ kỹ thuật' }} · {{ t.updatedAt | date:'dd/MM HH:mm' }}
-              </div>
-            </button>
-          }
+          <div class="o-card-body flex flex-col gap-2.5">
+            @for (t of tickets(); track t.id) {
+              <button
+                type="button"
+                class="o-tile flex flex-col gap-1.5 text-left cursor-pointer"
+                [style.border-color]="t.id === activeTicket()?.id ? 'rgb(var(--c-primary))' : ''"
+                [style.background]="t.id === activeTicket()?.id ? 'rgb(var(--c-primary) / 0.08)' : ''"
+                (click)="selectedId.set(t.id)">
+                <div class="flex items-center justify-between gap-2 w-full">
+                  <span class="o-badge mono">#{{ t.id }}</span>
+                  <span class="o-badge" [class.success]="t.status === 'answered'" [class.secondary]="t.status !== 'answered'">
+                    {{ t.status === 'answered' ? 'Đã phản hồi' : 'Đang xử lý' }}
+                  </span>
+                </div>
+                <div class="truncate font-semibold text-label-lg">{{ t.subject }}</div>
+                <div class="flex items-center gap-1.5 text-label-sm o-muted">
+                  <o-icon [name]="t.type === 'feature' ? 'sparkles' : 'settings'" [size]="12" />
+                  <span>{{ t.type === 'feature' ? 'Đề xuất tính năng' : 'Hỗ trợ kỹ thuật' }} · {{ t.updatedAt | date:'dd/MM HH:mm' }}</span>
+                </div>
+              </button>
+            }
+          </div>
         </div>
 
         <!-- Right: Ticket Conversation Thread -->
         @if (!activeTicket(); as t) {
-          <div class="flex items-center justify-center rounded-2xl border border-overlay/[0.08] bg-surface-container p-12 text-body-sm text-outline">
-            Chọn một yêu cầu hỗ trợ ở bên trái để xem nội dung trao đổi.
+          <div class="o-card o-empty">
+            <o-icon name="message" [size]="28" />
+            <div>Chọn một yêu cầu hỗ trợ ở bên trái để xem nội dung trao đổi.</div>
           </div>
         } @else {
-          <div class="flex flex-col justify-between gap-space-md rounded-2xl border border-overlay/[0.08] bg-surface-container p-space-md">
+          <div class="o-card flex flex-col justify-between">
             <div>
-              <div class="flex flex-wrap items-center justify-between gap-2 border-b border-overlay/[0.06] pb-3">
-                <div>
-                  <h2 class="text-title-md font-bold text-on-surface">{{ activeTicket().subject }}</h2>
-                  <span class="font-mono text-xs text-outline">
+              <div class="o-card-head border-b border-overlay/[0.06]">
+                <div class="o-card-ico"><o-icon name="message" [size]="18" /></div>
+                <div class="min-w-0 flex-1">
+                  <div class="o-card-title">{{ activeTicket().subject }}</div>
+                  <div class="o-card-sub font-mono">
                     Mã phiếu: #{{ activeTicket().id }} · Tạo lúc {{ activeTicket().createdAt | date:'dd/MM/yyyy HH:mm' }}
-                  </span>
+                  </div>
                 </div>
-                <span class="rounded-full bg-tertiary/15 px-3 py-1 text-xs font-semibold text-tertiary">
-                  Đội ngũ Omnira trực tuyến 24/7
-                </span>
+                <span class="o-badge pill success">Kỹ sư trực 24/7</span>
               </div>
 
-              <div class="mt-4 flex flex-col gap-3 max-h-[420px] overflow-y-auto pr-1">
+              <div class="o-card-body pt-4 flex flex-col gap-3 max-h-[440px] o-scroll">
                 @for (m of activeTicket().messages || []; track m.id) {
                   <div
-                    class="flex flex-col gap-1 rounded-xl p-3.5 max-w-[85%]"
-                    [ngClass]="m.role === 'staff' ? 'self-start bg-surface-container-high border border-secondary/30' : 'self-end bg-primary/20 border border-primary/30'">
-                    <div class="flex items-center justify-between gap-4 text-xs">
-                      <strong [ngClass]="m.role === 'staff' ? 'text-secondary' : 'text-primary'">
+                    class="o-tile flex flex-col gap-1.5 max-w-[86%]"
+                    [class.self-start]="m.role === 'staff'"
+                    [class.self-end]="m.role !== 'staff'"
+                    [style.border-color]="m.role !== 'staff' ? 'rgb(var(--c-primary) / 0.35)' : ''"
+                    [style.background]="m.role !== 'staff' ? 'rgb(var(--c-primary) / 0.1)' : ''">
+                    <div class="flex items-center justify-between gap-4 text-label-sm">
+                      <strong [class.o-secondary]="m.role === 'staff'" [class.o-primary]="m.role !== 'staff'">
                         {{ m.author }}
                       </strong>
-                      <span class="font-mono text-[11px] text-outline">{{ m.createdAt | date:'dd/MM HH:mm' }}</span>
+                      <span class="font-mono o-muted">{{ m.createdAt | date:'dd/MM HH:mm' }}</span>
                     </div>
-                    <p class="whitespace-pre-line text-body-sm text-on-surface">{{ m.body }}</p>
+                    <p class="whitespace-pre-line text-body-sm">{{ m.body }}</p>
                   </div>
                 }
               </div>
             </div>
 
             <!-- Reply Box -->
-            <div class="flex gap-2 border-t border-overlay/[0.06] pt-3">
+            <div class="p-4 border-t border-overlay/[0.06] flex gap-2">
               <input
+                class="o-input flex-1"
                 [(ngModel)]="replyText"
                 (keydown.enter)="sendReply()"
-                placeholder="Nhập phản hồi thêm cho kỹ thuật viên…"
-                class="min-w-0 flex-1 rounded-xl border border-overlay/[0.12] bg-surface-container-lowest px-3.5 py-2.5 text-body-sm text-on-surface" />
-              <button
-                type="button"
-                (click)="sendReply()"
-                class="rounded-xl bg-primary px-5 py-2.5 text-label-md font-semibold text-on-primary">
-                Gửi phản hồi
+                placeholder="Nhập phản hồi thêm cho kỹ thuật viên…" />
+              <button type="button" class="o-btn o-btn-primary shrink-0" (click)="sendReply()">
+                <o-icon name="send" [size]="14" /> Gửi phản hồi
               </button>
             </div>
           </div>
@@ -114,36 +124,42 @@ import { OmniApiService } from '../../core/omni-api.service';
 
     <!-- New Ticket Modal -->
     @if (newModalOpen()) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4">
-        <div class="w-full max-w-lg rounded-2xl border border-overlay/[0.12] bg-surface-container-high p-space-lg shadow-2xl flex flex-col gap-space-md">
-          <div class="flex items-center justify-between">
-            <h3 class="text-headline-sm font-semibold text-on-surface">Tạo yêu cầu hỗ trợ / Góp ý mới</h3>
-            <button type="button" (click)="newModalOpen.set(false)" class="text-on-surface-variant">✕</button>
+      <div class="o-backdrop" (click)="newModalOpen.set(false)"></div>
+      <div class="o-modal" (click)="$event.stopPropagation()">
+        <div class="o-modal-head">
+          <div>
+            <div class="o-card-title">Tạo yêu cầu hỗ trợ / Góp ý mới</div>
+            <div class="o-card-sub">Đội ngũ kỹ sư Omnira phản hồi trung bình trong 15 phút.</div>
           </div>
+          <button type="button" class="o-icon-btn" (click)="newModalOpen.set(false)"><o-icon name="x" [size]="16" /></button>
+        </div>
 
-          <label class="flex flex-col gap-1 text-label-sm text-on-surface-variant">
-            Phân loại
-            <select [(ngModel)]="newForm.type" class="rounded-lg border border-overlay/[0.12] bg-surface-container px-3 py-2 text-body-sm text-on-surface">
-              <option value="support">🛠 Hỗ trợ kỹ thuật / Báo lỗi</option>
-              <option value="feature">💡 Đề xuất tính năng mới</option>
-              <option value="billing">💳 Thanh toán & Bản quyền</option>
+        <div class="o-modal-body">
+          <label class="o-field">
+            <span class="o-label">Phân loại yêu cầu</span>
+            <select class="o-select" [(ngModel)]="newForm.type">
+              <option value="support">Hỗ trợ kỹ thuật / Báo lỗi</option>
+              <option value="feature">Đề xuất tính năng mới</option>
+              <option value="billing">Thanh toán & Bản quyền</option>
             </select>
           </label>
 
-          <label class="flex flex-col gap-1 text-label-sm text-on-surface-variant">
-            Tiêu đề
-            <input [(ngModel)]="newForm.subject" placeholder="VD: Cần hướng dẫn tối ưu Seedance 2.0 nhiều cảnh…" class="rounded-lg border border-overlay/[0.12] bg-surface-container px-3 py-2 text-body-sm text-on-surface" />
+          <label class="o-field">
+            <span class="o-label">Tiêu đề</span>
+            <input class="o-input" [(ngModel)]="newForm.subject" placeholder="VD: Cần hướng dẫn tối ưu Seedance 2.0 nhiều cảnh…" />
           </label>
 
-          <label class="flex flex-col gap-1 text-label-sm text-on-surface-variant">
-            Nội dung chi tiết
-            <textarea [(ngModel)]="newForm.body" rows="4" placeholder="Mô tả chi tiết yêu cầu của bạn…" class="rounded-lg border border-overlay/[0.12] bg-surface-container px-3 py-2 text-body-sm text-on-surface"></textarea>
+          <label class="o-field">
+            <span class="o-label">Nội dung chi tiết</span>
+            <textarea class="o-textarea" [(ngModel)]="newForm.body" rows="4" placeholder="Mô tả chi tiết yêu cầu của bạn…"></textarea>
           </label>
+        </div>
 
-          <div class="flex justify-end gap-2 pt-2">
-            <button type="button" (click)="newModalOpen.set(false)" class="rounded-lg bg-surface-container px-4 py-2 text-label-md text-on-surface">Hủy</button>
-            <button type="button" (click)="createTicket()" class="rounded-lg bg-primary px-4 py-2 text-label-md font-semibold text-on-primary">Gửi yêu cầu</button>
-          </div>
+        <div class="o-modal-foot">
+          <button type="button" class="o-btn o-btn-subtle" (click)="newModalOpen.set(false)">Hủy</button>
+          <button type="button" class="o-btn o-btn-primary" (click)="createTicket()">
+            <o-icon name="send" [size]="14" /> Gửi yêu cầu
+          </button>
         </div>
       </div>
     }
@@ -164,7 +180,7 @@ export class SupportPage implements OnInit {
   };
 
   readonly activeTicket = computed(
-    () => this.tickets().find((t) => t.id === this.selectedId()) || this.tickets()[0] || null
+    () => this.tickets().find((t) => t.id === this.selectedId()) || this.tickets()[0] || null,
   );
 
   async ngOnInit() {
